@@ -1,0 +1,362 @@
+<div class="main-content">
+  <h2><a name=""></a></h2>
+  <p>This is the  API</p>
+
+  <h2><a name="auctionsCalendarGet"></a>auctionsCalendarGet</h2>
+  <hr>
+  <p></p>
+  
+  <h3 class="section">URL</h3>
+  <code>https://virtserver.swaggerhub.com/valentinredondo2005o/Prueba/1.0.0/auctions/calendar</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>GET</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="CalendarResponse"><a href="">CalendarResponse</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+	  <li class="parameter">
+      
+      <span class="param-in">Query: </span>
+      
+      
+      
+      <span class="param-name">month</span>
+      <span class="param-type">Integer</span>
+      
+      <p class="param-description"></p>
+	  </li>
+	  <li class="parameter">
+      
+      <span class="param-in">Query: </span>
+      
+      
+      
+      <span class="param-name">year</span>
+      <span class="param-type">Integer</span>
+      
+      <p class="param-description"></p>
+	  </li>
+  </ul>
+  <h2><a name="auctionsGet"></a>auctionsGet</h2>
+  <hr>
+  <p></p>
+  <p>Devuelve subastas activas y próximas. Soporta filtro por categoría, tipo y búsqueda por texto.</p>
+  <h3 class="section">URL</h3>
+  <code>https://virtserver.swaggerhub.com/valentinredondo2005o/Prueba/1.0.0/auctions</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>GET</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="AuctionPage"><a href="">AuctionPage</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+	  <li class="parameter">
+      
+      <span class="param-in">Query: </span>
+      
+      
+      
+      <span class="param-name">category</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description"></p>
+	  </li>
+	  <li class="parameter">
+      
+      <span class="param-in">Query: </span>
+      
+      
+      
+      <span class="param-name">status</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description"></p>
+	  </li>
+	  <li class="parameter">
+      
+      <span class="param-in">Query: </span>
+      
+      
+      
+      <span class="param-name">search</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description"></p>
+	  </li>
+	  <li class="parameter">
+      
+      <span class="param-in">Query: </span>
+      
+      
+      
+      <span class="param-name">currency</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description"></p>
+	  </li>
+	  <li class="parameter">
+      
+      <span class="param-in">Query: </span>
+      
+      
+      
+      <span class="param-name">page</span>
+      <span class="param-type">Integer</span>
+      
+      <p class="param-description"></p>
+	  </li>
+	  <li class="parameter">
+      
+      <span class="param-in">Query: </span>
+      
+      
+      
+      <span class="param-name">size</span>
+      <span class="param-type">Integer</span>
+      
+      <p class="param-description"></p>
+	  </li>
+  </ul>
+  <h2><a name="auctionsIdGet"></a>auctionsIdGet</h2>
+  <hr>
+  <p></p>
+  
+  <h3 class="section">URL</h3>
+  <code>https://virtserver.swaggerhub.com/valentinredondo2005o/Prueba/1.0.0/auctions/{id}</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>GET</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="AuctionDetail"><a href="">AuctionDetail</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+	  <li class="parameter">
+      
+      
+      <span class="param-in">Path: </span>
+      
+      
+      <span class="param-name">id</span>
+      <span class="param-type">Integer</span>
+      
+      <p class="param-description"></p>
+	  </li>
+  </ul>
+  <h2><a name="auctionsIdShareLinkGet"></a>auctionsIdShareLinkGet</h2>
+  <hr>
+  <p></p>
+  
+  <h3 class="section">URL</h3>
+  <code>https://virtserver.swaggerhub.com/valentinredondo2005o/Prueba/1.0.0/auctions/{id}/share-link</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>GET</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="inline_response_200_1"><a href="">inline_response_200_1</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+	  <li class="parameter">
+      
+      
+      <span class="param-in">Path: </span>
+      
+      
+      <span class="param-name">id</span>
+      <span class="param-type">Integer</span>
+      
+      <p class="param-description"></p>
+	  </li>
+  </ul>
+  <h2><a name="auctionsIdStatusPatch"></a>auctionsIdStatusPatch</h2>
+  <hr>
+  <p></p>
+  <p>Permite al vendedor aceptar o rechazar el estado de publicación de su artículo. Solo aplicable a subastas en estado PENDING. </p>
+  <h3 class="section">URL</h3>
+  <code>https://virtserver.swaggerhub.com/valentinredondo2005o/Prueba/1.0.0/auctions/{id}/status</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>PATCH</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="Auction"><a href="">Auction</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+	  <li class="parameter">
+      
+      
+      
+      
+      <span class="param-in">Body: </span>
+      <span class="param-name">body</span>
+      <span class="param-type">Id_status_body(Id_status_body)</span>
+      
+      <p class="param-description"></p>
+	  </li>
+	  <li class="parameter">
+      
+      
+      <span class="param-in">Path: </span>
+      
+      
+      <span class="param-name">id</span>
+      <span class="param-type">Integer</span>
+      
+      <p class="param-description"></p>
+	  </li>
+  </ul>
+  <h2><a name="auctionsPost"></a>auctionsPost</h2>
+  <hr>
+  <p></p>
+  <p>Paso 1: nombre del producto, descripción, precio base, categoría, moneda. Paso 2: imágenes del bien (multipart). Se envía todo junto. </p>
+  <h3 class="section">URL</h3>
+  <code>https://virtserver.swaggerhub.com/valentinredondo2005o/Prueba/1.0.0/auctions</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>POST</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="Auction"><a href="">Auction</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+	  <li class="parameter">
+      <span class="param-in">Form: </span>
+      
+      
+      
+      
+      <span class="param-name">title</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description"></p>
+	  </li>
+	  <li class="parameter">
+      <span class="param-in">Form: </span>
+      
+      
+      
+      
+      <span class="param-name">description</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description"></p>
+	  </li>
+	  <li class="parameter">
+      <span class="param-in">Form: </span>
+      
+      
+      
+      
+      <span class="param-name">startingPrice</span>
+      <span class="param-type">Double</span>
+      
+      <p class="param-description"></p>
+	  </li>
+	  <li class="parameter">
+      <span class="param-in">Form: </span>
+      
+      
+      
+      
+      <span class="param-name">currency</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description"></p>
+	  </li>
+	  <li class="parameter">
+      <span class="param-in">Form: </span>
+      
+      
+      
+      
+      <span class="param-name">category</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description"></p>
+	  </li>
+	  <li class="parameter">
+      <span class="param-in">Form: </span>
+      
+      
+      
+      
+      <span class="param-name">startDate</span>
+      <span class="param-type">Date</span>
+      
+      <p class="param-description"></p>
+	  </li>
+	  <li class="parameter">
+      <span class="param-in">Form: </span>
+      
+      
+      
+      
+      <span class="param-name">endDate</span>
+      <span class="param-type">Date</span>
+      
+      <p class="param-description"></p>
+	  </li>
+	  <li class="parameter">
+      <span class="param-in">Form: </span>
+      
+      
+      
+      
+      <span class="param-name">includedItems</span>
+      <span class="param-type">List(String)</span>
+      
+      <p class="param-description"></p>
+	  </li>
+	  <li class="parameter">
+      <span class="param-in">Form: </span>
+      
+      
+      
+      
+      <span class="param-name">images</span>
+      <span class="param-type">List(byte[])</span>
+      
+      <p class="param-description"></p>
+	  </li>
+  </ul>
+  <h2><a name="auctionsSearchSuggestionsGet"></a>auctionsSearchSuggestionsGet</h2>
+  <hr>
+  <p></p>
+  
+  <h3 class="section">URL</h3>
+  <code>https://virtserver.swaggerhub.com/valentinredondo2005o/Prueba/1.0.0/auctions/search/suggestions</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>GET</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="string"><a href="">List</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+	  <li class="parameter">
+      
+      <span class="param-in">Query: </span>
+      
+      
+      
+      <span class="param-name">q</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description"></p>
+	  </li>
+  </ul>
+  <h2><a name="auctionsUploadImagesPost"></a>auctionsUploadImagesPost</h2>
+  <hr>
+  <p></p>
+  <p>Corresponde al paso 2 \&quot;Media\&quot; del flujo \&quot;Cargar Bien\&quot;. Permite subir una o más imágenes desde la galería del dispositivo antes de finalizar la publicación. Retorna las URLs de las imágenes subidas para incluirlas en la creación de la subasta. </p>
+  <h3 class="section">URL</h3>
+  <code>https://virtserver.swaggerhub.com/valentinredondo2005o/Prueba/1.0.0/auctions/upload-images</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>POST</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="inline_response_200"><a href="">inline_response_200</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+	  <li class="parameter">
+      <span class="param-in">Form: </span>
+      
+      
+      
+      
+      <span class="param-name">images</span>
+      <span class="param-type">List(byte[])</span>
+      
+      <p class="param-description"></p>
+	  </li>
+  </ul>
+</div>

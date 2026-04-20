@@ -1,0 +1,62 @@
+
+<h2>CreateAuctionRequest</h2>
+<ul class="parameter">
+  <li class="param-required-true">title : String
+    <br/>
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">description : String
+    <br/>
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">startingPrice : Double
+    <br/>
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">currency : String
+    <br/>
+      <dl class="param-enum">
+        <dt>Enum:
+            <dd>ARS</dd>
+            <dd>USD</dd>
+        </dt>
+      </dl>
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">category : String
+    <br/>
+      <dl class="param-enum">
+        <dt>Enum:
+            <dd>Comun</dd>
+            <dd>Especial</dd>
+            <dd>Plata</dd>
+            <dd>Oro</dd>
+            <dd>Platino</dd>
+        </dt>
+      </dl>
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">startDate : Date
+    <br/>
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">endDate : Date
+    <br/>
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">includedItems : List
+    <br/>
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">images : List
+    <br/>Imágenes del bien desde galería (multipart)
+  </li>
+</ul>
