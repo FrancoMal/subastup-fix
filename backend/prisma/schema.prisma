@@ -1,0 +1,199 @@
+// This is your Prisma schema file
+// npx prisma migrate dev --name init   → crea las tablas
+// npx prisma studio                    → abre UI visual de la BD
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────
+// USUARIOS
+// ─────────────────────────────────────────
+model User {
+  id            Int       @id @default(autoincrement())
+  name          String
+  lastName      String
+  dni           String    @unique
+  phone         String?
+  email         String    @unique
+  password      String
+  avatarUrl     String?
+
+  // Dirección
+  address       String?
+  addressNumber String?
+  country       String?
+  city          String?
+  postalCode    String?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relaciones
+  auctions      Auction[]          @relation("SellerAuctions")
+  bids          Bid[]
+  chats         ChatParticipant[]
+  messagesSent  Message[]
+  notifications Notification[]
+  settings      UserSettings?
+  paymentMethods PaymentMethod[]
+
+  // Para recuperación de contraseña
+  resetCode         String?
+  resetCodeExpires  DateTime?
+}
+
+// ─────────────────────────────────────────
+// SUBASTAS
+// ─────────────────────────────────────────
+enum AuctionStatus {
+  PENDING    // Publicada, esperando inicio
+  ACTIVE     // En curso
+  ENDED      // Finalizada
+  CANCELLED  // Cancelada/rechazada
+}
+
+enum Currency {
+  ARS
+  USD
+}
+
+model Auction {
+  id            Int           @id @default(autoincrement())
+  title         String
+  description   String
+  imageUrls     String[]      // Array de URLs de Cloudinary
+  category      String
+  currency      Currency      @default(ARS)
+  startingPrice Float
+  currentPrice  Float
+  status        AuctionStatus @default(PENDING)
+  startDate     DateTime
+  endDate       DateTime
+  includedItems String[]      // Lista de ítems incluidos en el lote
+  shareUrl      String?
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relaciones
+  sellerId      Int
+  seller        User          @relation("SellerAuctions", fields: [sellerId], references: [id])
+  bids          Bid[]
+}
+
+// ─────────────────────────────────────────
+// PUJAS
+// ─────────────────────────────────────────
+model Bid {
+  id         Int      @id @default(autoincrement())
+  amount     Float
+  currency   Currency @default(ARS)
+  createdAt  DateTime @default(now())
+
+  // Relaciones
+  auctionId  Int
+  auction    Auction  @relation(fields: [auctionId], references: [id])
+  bidderId   Int
+  bidder     User     @relation(fields: [bidderId], references: [id])
+}
+
+// ─────────────────────────────────────────
+// CHATS Y MENSAJES
+// ─────────────────────────────────────────
+model Chat {
+  id           Int                @id @default(autoincrement())
+  createdAt    DateTime           @default(now())
+
+  // Relaciones
+  participants ChatParticipant[]
+  messages     Message[]
+}
+
+// Tabla pivot User ↔ Chat
+model ChatParticipant {
+  userId    Int
+  chatId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  chat      Chat     @relation(fields: [chatId], references: [id])
+
+  @@id([userId, chatId])
+}
+
+enum AttachmentType {
+  IMAGE
+  FILE
+}
+
+model Message {
+  id             Int            @id @default(autoincrement())
+  text           String?
+  attachmentUrl  String?
+  attachmentType AttachmentType?
+  createdAt      DateTime       @default(now())
+
+  // Relaciones
+  chatId    Int
+  chat      Chat  @relation(fields: [chatId], references: [id])
+  senderId  Int
+  sender    User  @relation(fields: [senderId], references: [id])
+}
+
+// ─────────────────────────────────────────
+// NOTIFICACIONES
+// ─────────────────────────────────────────
+model Notification {
+  id        Int      @id @default(autoincrement())
+  title     String
+  body      String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  // Relaciones
+  userId    Int
+  user      User  @relation(fields: [userId], references: [id])
+}
+
+// ─────────────────────────────────────────
+// CONFIGURACIÓN DEL USUARIO
+// ─────────────────────────────────────────
+enum Theme {
+  LIGHT
+  DARK
+}
+
+model UserSettings {
+  id                   Int      @id @default(autoincrement())
+  theme                Theme    @default(LIGHT)
+  preferredCurrency    Currency @default(ARS)
+  notificationsEnabled Boolean  @default(true)
+
+  // Relación 1:1 con User
+  userId               Int      @unique
+  user                 User     @relation(fields: [userId], references: [id])
+}
+
+// ─────────────────────────────────────────
+// MÉTODOS DE PAGO
+// ─────────────────────────────────────────
+enum PaymentType {
+  CREDIT_CARD
+  DEBIT_CARD
+  BANK_TRANSFER
+}
+
+model PaymentMethod {
+  id        Int         @id @default(autoincrement())
+  type      PaymentType
+  label     String      // Ej: "Visa terminada en 4321"
+  isDefault Boolean     @default(false)
+
+  // Relaciones
+  userId    Int
+  user      User  @relation(fields: [userId], references: [id])
+}
