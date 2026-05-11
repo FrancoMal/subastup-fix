@@ -14,8 +14,11 @@ export default function AppNavigator() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Inicializa el store de auth (recupera sesión guardada, etc.)
-    init().finally(() => setLoading(false));
+    // Corre init() y un timer de 3s en paralelo; espera a que ambos terminen.
+    // Así el splash siempre dura al menos 3 segundos sin importar qué tan
+    // rápido responda AsyncStorage.
+    const timer = new Promise((resolve) => setTimeout(resolve, 3000));
+    Promise.all([init(), timer]).finally(() => setLoading(false));
   }, []);
 
   // Mientras se inicializa la app, mostramos la SplashScreen
