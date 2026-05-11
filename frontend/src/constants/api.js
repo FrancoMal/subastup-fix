@@ -1,0 +1,30 @@
+// Cambiá esta IP por la de tu PC en la red WiFi
+export const BASE_URL = 'http://192.168.1.100:3000';
+
+export const ENDPOINTS = {
+  LOGIN:           '/auth/login',
+  REGISTER:        '/auth/register',
+  LOGOUT:          '/auth/logout',
+  FORGOT_PASSWORD: '/auth/forgot-password',
+  VERIFY_CODE:     '/auth/verify-code',
+  RESET_PASSWORD:  '/auth/reset-password',
+  ME:              '/users/me',
+  MY_BIDS:         '/users/me/bids',
+  MY_AUCTIONS:     '/users/me/auctions',
+  AUCTIONS:        '/auctions',
+  AUCTION_BY_ID:   (id) => `/auctions/${id}`,
+  UPLOAD_IMAGES:   '/auctions/upload-images',
+  SUGGESTIONS:     '/auctions/search/suggestions',
+  CALENDAR:        '/auctions/calendar',
+  AUCTION_STATUS:  (id) => `/auctions/${id}/status`,
+  SHARE_LINK:      (id) => `/auctions/${id}/share-link`,
+  BIDS:            '/bids',
+  CHATS:           '/chats',
+  MESSAGES:        (id) => `/chats/${id}/messages`,
+  NOTIFICATIONS:   '/notifications',
+  MARK_READ:       (id) => `/notifications/${id}/read`,
+  SETTINGS:        '/settings',
+  PAYMENT_METHODS: '/settings/payment-methods',
+  PAYMENT_BY_ID:   (id) => `/settings/payment-methods/${id}`,
+  FAQ:             '/help/faq',
+};
