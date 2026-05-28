@@ -21,22 +21,27 @@ import useRegisterStore from '../../store/registerStore';
 const LOGO = require('../../assets/images/banner_principal.jpeg');
 
 /**
- * RegisterScreen - Paso 1
+ * RegisterScreen2 - Paso 2
  *
- * Pantalla de registro - Paso 1. Permite al usuario ingresar datos personales
- * (nombre, apellido, DNI, teléfono, email) antes de pasar al paso 2.
+ * Pantalla de registro - Paso 2. Permite al usuario ingresar datos de domicilio,
+ * cargar fotos y completar el registro.
+ *
+ * Recibe los datos del Paso 1 como parámetros de ruta.
  *
  * Navegación disponible:
- *   - Login   → pantalla de inicio de sesión
- *   - Paso 2  → siguiente paso del registro
+ *   - Login    → pantalla de inicio de sesión
+ *   - Register → volver al paso 1
  */
-export default function RegisterScreen({ navigation }) {
-  // Estado para controlar la pestaña activa
-  const [activeTab, setActiveTab] = useState('register');
-
+export default function RegisterScreen2({ navigation, route }) {
   // Store de registro
   const step1Data = useRegisterStore((state) => state.step1Data);
-  const setStep1Data = useRegisterStore((state) => state.setStep1Data);
+  const step2Data = useRegisterStore((state) => state.step2Data);
+  const setStep2Data = useRegisterStore((state) => state.setStep2Data);
+  const fotos = useRegisterStore((state) => state.fotos);
+  const setFotos = useRegisterStore((state) => state.setFotos);
+
+  // Estado para controlar la pestaña activa
+  const [activeTab, setActiveTab] = useState('register');
 
   // react-hook-form: control, errores y handleSubmit
   const {
@@ -45,22 +50,29 @@ export default function RegisterScreen({ navigation }) {
     formState: { errors },
     reset,
   } = useForm({
-    defaultValues: step1Data,
+    defaultValues: step2Data,
   });
 
   // Cargar datos del store cuando la pantalla recibe foco
   useFocusEffect(
     React.useCallback(() => {
-      reset(step1Data);
-    }, [step1Data, reset])
+      reset(step2Data);
+    }, [step2Data, reset])
   );
 
   // Se ejecuta cuando el formulario es válido
   const onSubmit = async (data) => {
     // Guardar datos en el store
-    setStep1Data(data);
-    // Navegar al Paso 2
-    navigation.navigate('RegisterStep2');
+    setStep2Data(data);
+    // Aquí iría la lógica para finalizar el registro
+    const registroCompleto = { ...step1Data, ...data, fotos };
+    console.log('Registro completo:', registroCompleto);
+    // Aquí se enviaría a la API para completar el registro
+  };
+
+  const handleFotoPress = (fotoKey) => {
+    // Aquí iría la lógica para seleccionar una foto desde la galería
+    console.log('Seleccionar foto:', fotoKey);
   };
 
   return (
@@ -86,7 +98,6 @@ export default function RegisterScreen({ navigation }) {
         <View style={styles.headerContainer}>
           <Image source={LOGO} style={styles.logo} />
         </View>
-        
 
         {/* Tabs: Iniciar sesión / Registrarse */}
         <View style={styles.tabContainer}>
@@ -110,36 +121,105 @@ export default function RegisterScreen({ navigation }) {
 
         {/* Indicador de pasos - CLICKEABLE */}
         <View style={styles.stepsContainer}>
-          {/* Paso 1 (activo) */}
-          <View style={styles.stepItem}>
-            <Text style={[styles.stepText, styles.stepActive]}>Paso 1</Text>
-            <View style={[styles.stepBar, styles.stepBarActive]} />
-          </View>
-
-          {/* Paso 2 - CLICKEABLE (inactivo) */}
+          {/* Paso 1 - CLICKEABLE (inactivo) */}
           <TouchableOpacity 
             style={styles.stepItem}
             onPress={() => {
               handleSubmit((data) => {
-                setStep1Data(data);
-                navigation.navigate('RegisterStep2');
+                setStep2Data(data);
+                navigation.navigate('Register');
               })();
             }}
           >
-            <Text style={styles.stepText}>Paso 2</Text>
+            <Text style={styles.stepText}>Paso 1</Text>
             <View style={styles.stepBar} />
+          </TouchableOpacity>
+
+          {/* Paso 2 (activo) */}
+          <View style={styles.stepItem}>
+            <Text style={[styles.stepText, styles.stepActive]}>Paso 2</Text>
+            <View style={[styles.stepBar, styles.stepBarActive]} />
+          </View>
+        </View>
+
+        {/* Cargar fotos */}
+        <Text style={styles.label}>Cargar fotos</Text>
+        <View style={styles.fotosContainer}>
+          <TouchableOpacity 
+            style={styles.fotoBox}
+            onPress={() => handleFotoPress('foto1')}
+          >
+            {fotos.foto1 ? (
+              <Image source={{ uri: fotos.foto1 }} style={styles.fotoImage} />
+            ) : (
+              <Text style={styles.fotoPlaceholder}>+</Text>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.fotoBox}
+            onPress={() => handleFotoPress('foto2')}
+          >
+            {fotos.foto2 ? (
+              <Image source={{ uri: fotos.foto2 }} style={styles.fotoImage} />
+            ) : (
+              <Text style={styles.fotoPlaceholder}>+</Text>
+            )}
           </TouchableOpacity>
         </View>
 
-        {/* Campo: Nombre */}
-        <Text style={styles.label}>Nombre</Text>
+        {/* Dirección + Número */}
+        <View style={styles.rowContainer}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Dirección</Text>
+            <Controller
+              control={control}
+              name="direccion"
+              rules={{ required: 'La dirección es obligatoria' }}
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  style={[styles.input, errors.direccion && styles.inputError]}
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  placeholder=""
+                  placeholderTextColor={COLORS.white}
+                />
+              )}
+            />
+            {errors.direccion && <Text style={styles.fieldError}>{errors.direccion.message}</Text>}
+          </View>
+
+          <View style={styles.inputGroupSmall}>
+            <Text style={styles.label}>Número</Text>
+            <Controller
+              control={control}
+              name="numero"
+              rules={{ required: 'El número es obligatorio' }}
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  style={[styles.input, errors.numero && styles.inputError]}
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  placeholder=""
+                  placeholderTextColor={COLORS.white}
+                  keyboardType="numeric"
+                />
+              )}
+            />
+            {errors.numero && <Text style={styles.fieldError}>{errors.numero.message}</Text>}
+          </View>
+        </View>
+
+        {/* País */}
+        <Text style={styles.label}>País</Text>
         <Controller
           control={control}
-          name="nombre"
-          rules={{ required: 'El nombre es obligatorio' }}
+          name="pais"
+          rules={{ required: 'El país es obligatorio' }}
           render={({ field: { onChange, onBlur, value } }) => (
             <TextInput
-              style={[styles.input, errors.nombre && styles.inputError]}
+              style={[styles.input, errors.pais && styles.inputError]}
               onBlur={onBlur}
               onChangeText={onChange}
               value={value}
@@ -148,17 +228,17 @@ export default function RegisterScreen({ navigation }) {
             />
           )}
         />
-        {errors.nombre && <Text style={styles.fieldError}>{errors.nombre.message}</Text>}
+        {errors.pais && <Text style={styles.fieldError}>{errors.pais.message}</Text>}
 
-        {/* Campo: Apellido */}
-        <Text style={styles.label}>Apellido</Text>
+        {/* Ciudad */}
+        <Text style={styles.label}>Ciudad</Text>
         <Controller
           control={control}
-          name="apellido"
-          rules={{ required: 'El apellido es obligatorio' }}
+          name="ciudad"
+          rules={{ required: 'La ciudad es obligatoria' }}
           render={({ field: { onChange, onBlur, value } }) => (
             <TextInput
-              style={[styles.input, errors.apellido && styles.inputError]}
+              style={[styles.input, errors.ciudad && styles.inputError]}
               onBlur={onBlur}
               onChangeText={onChange}
               value={value}
@@ -167,17 +247,17 @@ export default function RegisterScreen({ navigation }) {
             />
           )}
         />
-        {errors.apellido && <Text style={styles.fieldError}>{errors.apellido.message}</Text>}
+        {errors.ciudad && <Text style={styles.fieldError}>{errors.ciudad.message}</Text>}
 
-        {/* Campo: DNI */}
-        <Text style={styles.label}>DNI</Text>
+        {/* Código postal */}
+        <Text style={styles.label}>Código postal</Text>
         <Controller
           control={control}
-          name="dni"
-          rules={{ required: 'El DNI es obligatorio' }}
+          name="codigoPostal"
+          rules={{ required: 'El código postal es obligatorio' }}
           render={({ field: { onChange, onBlur, value } }) => (
             <TextInput
-              style={[styles.input, errors.dni && styles.inputError]}
+              style={[styles.input, errors.codigoPostal && styles.inputError]}
               onBlur={onBlur}
               onChangeText={onChange}
               value={value}
@@ -187,64 +267,17 @@ export default function RegisterScreen({ navigation }) {
             />
           )}
         />
-        {errors.dni && <Text style={styles.fieldError}>{errors.dni.message}</Text>}
-
-        {/* Campo: Teléfono */}
-        <Text style={styles.label}>Teléfono</Text>
-        <Controller
-          control={control}
-          name="telefono"
-          rules={{ required: 'El teléfono es obligatorio' }}
-          render={({ field: { onChange, onBlur, value } }) => (
-            <TextInput
-              style={[styles.input, errors.telefono && styles.inputError]}
-              onBlur={onBlur}
-              onChangeText={onChange}
-              value={value}
-              placeholder=""
-              placeholderTextColor={COLORS.white}
-              keyboardType="phone-pad"
-            />
-          )}
-        />
-        {errors.telefono && <Text style={styles.fieldError}>{errors.telefono.message}</Text>}
-
-        {/* Campo: Email */}
-        <Text style={styles.label}>Email</Text>
-        <Controller
-          control={control}
-          name="email"
-          rules={{ 
-            required: 'El email es obligatorio',
-            pattern: {
-              value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-              message: 'El email no es válido'
-            }
-          }}
-          render={({ field: { onChange, onBlur, value } }) => (
-            <TextInput
-              style={[styles.input, errors.email && styles.inputError]}
-              onBlur={onBlur}
-              onChangeText={onChange}
-              value={value}
-              placeholder=""
-              placeholderTextColor={COLORS.white}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          )}
-        />
-        {errors.email && <Text style={styles.fieldError}>{errors.email.message}</Text>}
+        {errors.codigoPostal && <Text style={styles.fieldError}>{errors.codigoPostal.message}</Text>}
 
         {/* Spacer */}
         <View style={styles.spacer} />
 
-        {/* Botón: Siguiente */}
+        {/* Botón: Finalizar */}
         <TouchableOpacity 
-          style={styles.nextButton}
+          style={styles.finalButton}
           onPress={handleSubmit(onSubmit)}
         >
-          <Text style={styles.nextButtonText}>Siguiente  »</Text>
+          <Text style={styles.finalButtonText}>Finalizar</Text>
         </TouchableOpacity>
       </ScrollView>
       </SafeAreaView>
@@ -352,13 +385,51 @@ const styles = StyleSheet.create({
     backgroundColor: '#9B1C1C',
   },
 
-  // Labels
+  // Fotos
   label: {
     fontSize: FONTS.sizes.md,
     fontWeight: '600',
     color: COLORS.secondary,
     marginBottom: SPACING.xs,
     marginTop: SPACING.lg,
+  },
+
+  fotosContainer: {
+    flexDirection: 'row',
+    marginBottom: SPACING.lg,
+    gap: SPACING.md,
+  },
+  fotoBox: {
+    flex: 1,
+    height: 80,
+    backgroundColor: COLORS.background,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fotoImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: RADIUS.md,
+  },
+  fotoPlaceholder: {
+    fontSize: 32,
+    color: COLORS.white,
+    fontWeight: '700',
+  },
+
+  // Inputs row
+  rowContainer: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+  },
+  inputGroup: {
+    flex: 1.6,
+  },
+  inputGroupSmall: {
+    flex: 1,
   },
 
   // Inputs
@@ -387,8 +458,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Next Button
-  nextButton: {
+  // Final Button
+  finalButton: {
     backgroundColor: COLORS.primary,
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
@@ -396,7 +467,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     marginTop: SPACING.lg,
   },
-  nextButtonText: {
+  finalButtonText: {
     color: COLORS.white,
     fontSize: FONTS.sizes.md,
     fontWeight: '700',

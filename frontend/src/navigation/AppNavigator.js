@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-import useAuthStore    from '../store/authStore';
-import AuthNavigator   from './AuthNavigator';
-import TabNavigator    from './TabNavigator';
-import SplashScreen    from '../screens/SplashScreen';
+import useAuthStore             from '../store/authStore';
+import SplashScreen             from '../screens/SplashScreen';
+import HomeUnauthenticatedScreen from '../screens/HomeUnauthenticatedScreen';
+import AuthNavigator            from './AuthNavigator';
+import TabNavigator             from './TabNavigator';
 
 const Stack = createNativeStackNavigator();
 
@@ -29,10 +30,21 @@ export default function AppNavigator() {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {!isLoggedIn
-          ? <Stack.Screen name="Auth" component={AuthNavigator} />
-          : <Stack.Screen name="Main" component={TabNavigator} />
-        }
+        {!isLoggedIn ? (
+          <>
+            <Stack.Screen 
+              name="HomeUnauth" 
+              component={HomeUnauthenticatedScreen} 
+            />
+            <Stack.Screen 
+              name="Auth" 
+              component={AuthNavigator} 
+              options={{ animationEnabled: false }}
+            />
+          </>
+        ) : (
+          <Stack.Screen name="Main" component={TabNavigator} />
+        )}
       </Stack.Navigator>
     </NavigationContainer>
   );
