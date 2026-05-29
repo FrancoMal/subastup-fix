@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
+import { Ionicons } from '@expo/vector-icons';
 
 import useAuthStore from '../../store/authStore';
 import { COLORS, SPACING, RADIUS, FONTS } from '../../constants/colors';
@@ -172,10 +173,13 @@ export default function LoginScreen({ navigation }) {
               )}
             />
             <TouchableOpacity
-              style={styles.eyeButton}
               onPress={() => setShowPassword(!showPassword)}
             >
-              <Text style={styles.eyeText}>{showPassword ? '🙈' : '👁️'}</Text>
+              <Ionicons
+                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                size={22}
+                color="#ffffff"
+              />
             </TouchableOpacity>
           </View>
           {errors.password && <Text style={styles.fieldError}>{errors.password.message}</Text>}
@@ -352,8 +356,6 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
   },
   passwordInput: { flex: 1, fontSize: FONTS.sizes.md, color: COLORS.secondary },
-  eyeButton:     { padding: SPACING.xs },
-  eyeText:       { fontSize: 18 },
   fieldError: {
     fontSize: FONTS.sizes.xs,
     color: COLORS.error,
