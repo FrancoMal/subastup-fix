@@ -11,38 +11,33 @@ import {
   ScrollView,
   Image,
   Switch,
+  Modal,
+  Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native'; // Import SafeAreaView
+import { SafeAreaView } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 
 import useAuthStore from '../../store/authStore';
 import { COLORS, SPACING, RADIUS, FONTS } from '../../constants/colors';
+// Descomentar cuando haya backend:
+// import api from '../../services/api';
+// import { ENDPOINTS } from '../../constants/api';
 
-// Logo de la app
 const LOGO = require('../../assets/images/banner_principal.jpeg');
 
-/**
- * LoginScreen
- *
- * Pantalla de inicio de sesión. Permite al usuario ingresar email y
- * contraseña para autenticarse. Conectado al authStore via Zustand.
- *
- * Navegación disponible:
- *   - Register       → pantalla de registro
- *   - ForgotPassword → recuperación de contraseña
- */
 export default function LoginScreen({ navigation }) {
-  // Estado local para mostrar/ocultar la contraseña
   const [showPassword, setShowPassword] = useState(false);
-  // Estado para recordar usuario
-  const [rememberMe, setRememberMe] = useState(true);
-  // Estado para controlar la pestaña activa
-  const [activeTab, setActiveTab] = useState('login');
+  const [rememberMe,   setRememberMe]   = useState(true);
+  const [activeTab,    setActiveTab]    = useState('login');
 
-  // Acciones e indicador de carga del store de autenticación
+  // Modal "Olvidé mi contraseña"
+  const [forgotVisible, setForgotVisible] = useState(false);
+  const [forgotEmail,   setForgotEmail]   = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError,   setForgotError]   = useState('');
+
   const { login, isLoading, error, clearError } = useAuthStore();
 
-  // react-hook-form: control, errores y handleSubmit
   const {
     control,
     handleSubmit,
@@ -51,148 +46,226 @@ export default function LoginScreen({ navigation }) {
     defaultValues: { email: '', password: '' },
   });
 
-  // Se ejecuta cuando el formulario es válido
+  // ── Login ──────────────────────────────────────────────────
   const onSubmit = async ({ email, password }) => {
     clearError();
     await login(email, password);
   };
 
+  // ── Forgot password ────────────────────────────────────────
+  const handleForgotPassword = async () => {
+    const emailRegex = /\S+@\S+\.\S+/;
+
+    if (!forgotEmail.trim()) {
+      setForgotError('Ingresá tu correo electrónico.');
+      return;
+    }
+    if (!emailRegex.test(forgotEmail)) {
+      setForgotError('El formato del mail no es válido.');
+      return;
+    }
+
+    setForgotLoading(true);
+    setForgotError('');
+
+    try {
+      // ── Conectar con backend ──────────────────────────────
+      // await api.post(ENDPOINTS.FORGOT_PASSWORD, { email: forgotEmail });
+      // ─────────────────────────────────────────────────────
+
+      setForgotLoading(false);
+      setForgotVisible(false);
+      setForgotEmail('');
+      navigation.navigate('VerifyCode', { email: forgotEmail });
+
+    } catch (err) {
+      setForgotLoading(false);
+      setForgotError('No encontramos una cuenta con ese mail. Intentá con otro.');
+    }
+  };
+
+  // ── Render ─────────────────────────────────────────────────
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'height' : 'height'}
       style={styles.flex}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
       <SafeAreaView style={styles.flex}>
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
         >
-        {/* Botón de volver */}
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.navigate('HomeUnauth')}
-        >
-          <Text style={styles.backButtonText}>← Volver</Text>
-        </TouchableOpacity>
 
-        {/* Logo */}
-        <View style={styles.headerContainer}>
-          <Image source={LOGO} style={styles.logo} />
-        </View>
-
-        {/* Tabs: Iniciar sesión / Registrarse */}
-        <View style={styles.tabContainer}>
-          <View style={[styles.tabIndicator, activeTab === 'login' && styles.indicatorLeft, activeTab === 'register' && styles.indicatorRight]} />
-          <TouchableOpacity 
-            style={styles.tab}
-            onPress={() => setActiveTab('login')}
+          {/* Volver */}
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.navigate('HomeUnauth')}
           >
-            <Text style={styles.tabText}>Iniciar sesión</Text>
+            <Text style={styles.backButtonText}>← Volver</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.tab}
-            onPress={() => {
-              setActiveTab('register');
-              navigation.navigate('Register');
-            }}
-          >
-            <Text style={styles.tabText}>Registrarse</Text>
-          </TouchableOpacity>
-        </View>
 
-        {error && (
-          <View style={styles.errorBanner}>
-            <Text style={styles.errorBannerText}>{error}</Text>
+          {/* Logo */}
+          <View style={styles.headerContainer}>
+            <Image source={LOGO} style={styles.logo} />
           </View>
-        )}
 
-        {/* Campo: Email */}
-        <Text style={styles.label}>Email</Text>
-        <Controller
-          control={control}
-          name="email"
-          rules={{ required: 'El email es obligatorio' }}
-          render={({ field: { onChange, onBlur, value } }) => (
-            <TextInput
-              style={[styles.input, errors.email && styles.inputError]}
-              onBlur={onBlur}
-              onChangeText={onChange}
-              value={value}
-              placeholder=""
-              placeholderTextColor={COLORS.white}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
+          {/* Tabs */}
+          <View style={styles.tabContainer}>
+            <View style={[
+              styles.tabIndicator,
+              activeTab === 'login'    && styles.indicatorLeft,
+              activeTab === 'register' && styles.indicatorRight,
+            ]} />
+            <TouchableOpacity style={styles.tab} onPress={() => setActiveTab('login')}>
+              <Text style={styles.tabText}>Iniciar sesión</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.tab}
+              onPress={() => { setActiveTab('register'); navigation.navigate('Register'); }}
+            >
+              <Text style={styles.tabText}>Registrarse</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Error banner del login */}
+          {error && (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorBannerText}>{error}</Text>
+            </View>
           )}
-        />
-        {errors.email && <Text style={styles.fieldError}>{errors.email.message}</Text>}
 
-        {/* Campo: Contraseña */}
-        <Text style={styles.label}>Contraseña</Text>
-        <View style={styles.passwordWrapper}>
+          {/* Email */}
+          <Text style={styles.label}>Email</Text>
           <Controller
             control={control}
-            name="password"
-            rules={{ required: 'La contraseña es obligatoria' }}
+            name="email"
+            rules={{ required: 'El email es obligatorio' }}
             render={({ field: { onChange, onBlur, value } }) => (
               <TextInput
-                style={[styles.passwordInput, errors.password && styles.inputError]}
+                style={[styles.input, errors.email && styles.inputError]}
                 onBlur={onBlur}
                 onChangeText={onChange}
                 value={value}
-                placeholder=""
-                placeholderTextColor={COLORS.white}
-                secureTextEntry={!showPassword}
+                keyboardType="email-address"
+                autoCapitalize="none"
               />
             )}
           />
+          {errors.email && <Text style={styles.fieldError}>{errors.email.message}</Text>}
+
+          {/* Contraseña */}
+          <Text style={styles.label}>Contraseña</Text>
+          <View style={styles.passwordWrapper}>
+            <Controller
+              control={control}
+              name="password"
+              rules={{ required: 'La contraseña es obligatoria' }}
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  style={styles.passwordInput}
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  secureTextEntry={!showPassword}
+                />
+              )}
+            />
+            <TouchableOpacity
+              style={styles.eyeButton}
+              onPress={() => setShowPassword(!showPassword)}
+            >
+              <Text style={styles.eyeText}>{showPassword ? '🙈' : '👁️'}</Text>
+            </TouchableOpacity>
+          </View>
+          {errors.password && <Text style={styles.fieldError}>{errors.password.message}</Text>}
+
+          {/* Ingresar */}
           <TouchableOpacity
-            style={styles.eyeButton}
-            onPress={() => setShowPassword(!showPassword)}
+            style={[styles.button, isLoading && styles.buttonDisabled]}
+            onPress={handleSubmit(onSubmit)}
+            disabled={isLoading}
           >
-            <Text style={styles.eyeText}>{showPassword ? '🙈' : '👁️'}</Text>
+            {isLoading
+              ? <ActivityIndicator color={COLORS.white} />
+              : <Text style={styles.buttonText}>Ingresar</Text>
+            }
           </TouchableOpacity>
-        </View>
-        {errors.password && <Text style={styles.fieldError}>{errors.password.message}</Text>}
 
-        {/* Botón: Ingresar */}
-        <TouchableOpacity
-          style={[styles.button, isLoading && styles.buttonDisabled]}
-          onPress={handleSubmit(onSubmit)}
-          disabled={isLoading}
-        >
-          <Text style={styles.buttonText}>Ingresar</Text>
-        </TouchableOpacity>
+          {/* Recordar usuario */}
+          <View style={styles.rememberMeRow}>
+            <Switch
+              value={rememberMe}
+              onValueChange={setRememberMe}
+              trackColor={{ false: COLORS.border, true: COLORS.primary }}
+              thumbColor={rememberMe ? COLORS.white : COLORS.placeholder}
+            />
+            <Text style={styles.rememberMeText}>Recordar Usuario</Text>
+          </View>
 
-        {/* Toggle: Recordar Usuario */}
-        <View style={styles.rememberMeRow}>
-          <Switch
-            value={rememberMe}
-            onValueChange={setRememberMe}
-            trackColor={{ false: COLORS.border, true: COLORS.primary }}
-            thumbColor={rememberMe ? COLORS.white : COLORS.placeholder}
-          />
-          <Text style={styles.rememberMeText}>Recordar Usuario</Text>
-        </View>
+          <View style={styles.spacer} />
 
-        {/* Spacer */}
-        <View style={styles.spacer} />
+          {/* Olvidé mi contraseña */}
+          <TouchableOpacity
+            style={styles.forgotWrapperBottom}
+            onPress={() => { setForgotEmail(''); setForgotError(''); setForgotVisible(true); }}
+          >
+            <Text style={styles.forgotText}>Olvide mi contraseña</Text>
+          </TouchableOpacity>
 
-        {/* Enlace: Olvidé mi contraseña */}
-        <TouchableOpacity
-          style={styles.forgotWrapperBottom}
-          onPress={() => navigation.navigate('ForgotPassword')}
-        >
-          <Text style={styles.forgotText}>Olvide mi contraseña</Text>
-        </TouchableOpacity>
-      </ScrollView>
+        </ScrollView>
+
+        {/* ── Modal: Olvidé mi contraseña ── */}
+        <Modal transparent visible={forgotVisible} animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+
+              <TouchableOpacity
+                style={styles.modalClose}
+                onPress={() => setForgotVisible(false)}
+              >
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.modalTitulo}>Ingresa tu mail</Text>
+
+              <TextInput
+                style={[styles.modalInput, forgotError ? styles.modalInputError : null]}
+                value={forgotEmail}
+                onChangeText={(t) => { setForgotEmail(t); setForgotError(''); }}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+
+              {forgotError
+                ? <Text style={styles.modalError}>{forgotError}</Text>
+                : null
+              }
+
+              <TouchableOpacity
+                style={[styles.modalBtn, forgotLoading && styles.buttonDisabled]}
+                onPress={handleForgotPassword}
+                disabled={forgotLoading}
+              >
+                {forgotLoading
+                  ? <ActivityIndicator color="#FFFFFF" />
+                  : <Text style={styles.modalBtnText}>Enviar</Text>
+                }
+              </TouchableOpacity>
+
+              <Text style={styles.modalSubtexto}>
+                Te enviaremos un mail con un codigo de verificacion
+              </Text>
+
+            </View>
+          </View>
+        </Modal>
+
       </SafeAreaView>
     </KeyboardAvoidingView>
   );
 }
-
-// ─── Estilos ────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: COLORS.white },
@@ -204,27 +277,9 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.lg,
   },
 
-  // Logo + Título
-  headerContainer: {
-    alignItems: 'center',
-    marginBottom: SPACING.lg,
-  },
-  logo: { width: '90%', height: undefined, aspectRatio: 2.5 },
-  titleContainer: {
-    alignItems: 'center',
-    marginBottom: SPACING.xxl,
-  },
-  appTitle: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: COLORS.secondary,
-  },
-  appSubtitle: {
-    fontSize: 10,
-    color: '#757575',
-    letterSpacing: 1.2,
-    marginTop: 2,
-  },
+  // Logo
+  headerContainer: { alignItems: 'center', marginBottom: SPACING.lg },
+  logo:            { width: '90%', height: undefined, aspectRatio: 2.5 },
 
   // Tabs
   tabContainer: {
@@ -243,14 +298,8 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.md,
     zIndex: 0,
   },
-  indicatorLeft: {
-    width: '50%',
-    left: 0,
-  },
-  indicatorRight: {
-    width: '50%',
-    left: '50%',
-  },
+  indicatorLeft:  { width: '50%', left: 0 },
+  indicatorRight: { width: '50%', left: '50%' },
   tab: {
     flex: 1,
     justifyContent: 'center',
@@ -258,13 +307,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     zIndex: 1,
   },
-  tabText: {
-    fontSize: FONTS.sizes.md,
-    color: COLORS.white,
-    fontWeight: '600',
-  },
+  tabText: { fontSize: FONTS.sizes.md, color: COLORS.white, fontWeight: '600' },
 
-  // Error Banner
+  // Error banner
   errorBanner: {
     backgroundColor: '#FFEBEE',
     borderRadius: RADIUS.md,
@@ -275,7 +320,7 @@ const styles = StyleSheet.create({
   },
   errorBannerText: { color: COLORS.error, fontSize: FONTS.sizes.sm },
 
-  // Labels
+  // Labels e inputs
   label: {
     fontSize: FONTS.sizes.md,
     fontWeight: '600',
@@ -283,8 +328,6 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
     marginTop: SPACING.lg,
   },
-
-  // Inputs
   input: {
     height: 48,
     backgroundColor: COLORS.background,
@@ -293,11 +336,10 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     paddingHorizontal: SPACING.md,
     fontSize: FONTS.sizes.md,
-    color: COLORS.white,
+    color: COLORS.secondary,
     marginBottom: SPACING.lg,
   },
   inputError: { borderColor: COLORS.error },
-
   passwordWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -309,14 +351,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     marginBottom: SPACING.lg,
   },
-  passwordInput: {
-    flex: 1,
-    fontSize: FONTS.sizes.md,
-    color: COLORS.white,
-  },
-  eyeButton: { padding: SPACING.xs },
-  eyeText: { fontSize: 18 },
-
+  passwordInput: { flex: 1, fontSize: FONTS.sizes.md, color: COLORS.secondary },
+  eyeButton:     { padding: SPACING.xs },
+  eyeText:       { fontSize: 18 },
   fieldError: {
     fontSize: FONTS.sizes.xs,
     color: COLORS.error,
@@ -324,7 +361,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
 
-  // Button
+  // Botón login
   button: {
     height: 50,
     backgroundColor: COLORS.primary,
@@ -335,13 +372,9 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
   },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: {
-    color: COLORS.white,
-    fontSize: FONTS.sizes.lg,
-    fontWeight: '700',
-  },
+  buttonText: { color: COLORS.white, fontSize: FONTS.sizes.lg, fontWeight: '700' },
 
-  // Remember Me
+  // Recordar usuario
   rememberMeRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -355,30 +388,26 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Spacer
-  spacer: {
-    flex: 1,
-  },
+  spacer: { flex: 1 },
 
-  // Back Button
-  backButton: {
-    marginBottom: SPACING.md,
-    paddingVertical: SPACING.sm,
-  },
-  backButtonText: {
-    fontSize: FONTS.sizes.md,
-    color: COLORS.primary,
-    fontWeight: '600',
-  },
+  // Back button
+  backButton:     { marginBottom: SPACING.md, paddingVertical: SPACING.sm },
+  backButtonText: { fontSize: FONTS.sizes.md, color: COLORS.primary, fontWeight: '600' },
 
-  // Forgot Password
-  forgotWrapperBottom: {
-    alignItems: 'center',
-    marginTop: SPACING.xxl,
-  },
-  forgotText: {
-    fontSize: FONTS.sizes.md,
-    color: COLORS.error,
-    fontWeight: '600',
-  },
+  // Forgot
+  forgotWrapperBottom: { alignItems: 'center', marginTop: SPACING.xxl },
+  forgotText: { fontSize: FONTS.sizes.md, color: COLORS.error, fontWeight: '600' },
+
+  // Modal
+  modalOverlay:    { flex:1, backgroundColor:'#00000066', justifyContent:'center', alignItems:'center', paddingHorizontal:32 },
+  modalCard:       { backgroundColor:'#FFFFFF', borderRadius:20, padding:24, width:'100%', alignItems:'center' },
+  modalClose:      { position:'absolute', top:14, right:16 },
+  modalCloseText:  { fontSize:18, color:'#555555' },
+  modalTitulo:     { fontSize:20, fontWeight:'700', color:'#1A1A1A', marginBottom:16 },
+  modalInput:      { width:'100%', height:48, backgroundColor:'#E0E0E0', borderRadius:10, paddingHorizontal:14, fontSize:15, marginBottom:12 },
+  modalInputError: { borderWidth:1.5, borderColor:'#C62828' },
+  modalError:      { fontSize:12, color:'#C62828', marginBottom:8, textAlign:'center' },
+  modalBtn:        { backgroundColor:'#8b0000', borderRadius:10, paddingVertical:12, paddingHorizontal:40, marginBottom:12 },
+  modalBtnText:    { color:'#FFFFFF', fontWeight:'700', fontSize:15 },
+  modalSubtexto:   { fontSize:13, color:'#555555', textAlign:'center', lineHeight:20 },
 });

@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 const LOGO = require('../../assets/images/texto_appbar.jpeg');
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 16 * 2 - 12) / 2;
+const CARD_HEIGHT = CARD_WIDTH * 1.4; 
 
 const CATEGORIAS = {
   especial: ['Oro', 'Platino'],
@@ -43,7 +44,7 @@ export default function AuctionListScreen({ navigation, route }) {
     <TouchableOpacity
       style={[styles.card, index % 2 === 0 ? { marginRight: 6 } : { marginLeft: 6 }]}
       activeOpacity={0.85}
-      onPress={() => console.log('Ver producto', item.titulo)}
+      onPress={() => navigation.navigate('AuctionDetail', { productId: item.id })} 
     >
       <View style={[styles.cardImage, { backgroundColor: item.color }]} />
 
@@ -184,7 +185,7 @@ const styles = StyleSheet.create({
 
   card: {
     width: CARD_WIDTH,
-    height: 200,
+    height: CARD_HEIGHT,
     borderRadius: 12,
     overflow: 'hidden',
     marginBottom: 12,

@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Modal,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useForm, Controller } from 'react-hook-form';
@@ -41,19 +42,16 @@ export default function RegisterScreen2({ navigation, route }) {
   const setStep2Data = useRegisterStore((state) => state.setStep2Data);
   const fotos = useRegisterStore((state) => state.fotos);
   const setFotos = useRegisterStore((state) => state.setFotos);
+  const clearRegistration = useRegisterStore((state) => state.clearRegistration);
 
   // Estado para controlar la pestaña activa
   const [activeTab, setActiveTab] = useState('register');
 
+  // Estado para el modal de aviso post-registro
+  const [modalVisible, setModalVisible] = useState(false);
+
   // react-hook-form: control, errores y handleSubmit
-  const {
-    control,
-    handleSubmit,
-    formState: { errors },
-    reset,
-  } = useForm({
-    defaultValues: step2Data,
-  });
+  const { control, handleSubmit, formState: { errors }, reset,} = useForm({defaultValues: step2Data,});
 
   // Cargar datos del store cuando la pantalla recibe foco
   useFocusEffect(
@@ -64,12 +62,21 @@ export default function RegisterScreen2({ navigation, route }) {
 
   // Se ejecuta cuando el formulario es válido
   const onSubmit = async (data) => {
-    // Guardar datos en el store
-    setStep2Data(data);
-    // Aquí iría la lógica para finalizar el registro
-    const registroCompleto = { ...step1Data, ...data, fotos };
-    console.log('Registro completo:', registroCompleto);
-    // Aquí se enviaría a la API para completar el registro
+    try {
+      setStep2Data(data);
+      const registroCompleto = { ...step1Data, ...data, fotos };
+      console.log('Registro completo:', registroCompleto);
+      reset();
+      clearRegistration();
+      setFotos({ foto1: null, foto2: null });
+      setModalVisible(true);
+    } catch (err) {
+      Alert.alert(
+        'Error',
+        'Hubo un problema al enviar el registro. Intentá de nuevo.',
+        [{ text: 'OK' }]
+      );
+    }
   };
 
   const handleFotoPress = async (fotoKey) => {
@@ -296,6 +303,29 @@ export default function RegisterScreen2({ navigation, route }) {
           <Text style={styles.finalButtonText}>Finalizar</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <Modal transparent visible={modalVisible} animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <TouchableOpacity style={styles.modalClose} onPress={() => setModalVisible(false)}>
+              <Text style={styles.modalCloseText}>✕</Text>
+            </TouchableOpacity>
+            <View style={styles.modalIcon}>
+              <Text style={styles.modalIconText}>ⓘ</Text>
+            </View>
+            <Text style={styles.modalTitulo}>Aviso</Text>
+            <Text style={styles.modalMensaje}>
+              Tu registro fue enviado correctamente. Un administrador revisará tus datos y habilitará tu cuenta.
+            </Text>
+            <TouchableOpacity
+              style={styles.modalBtn}
+              onPress={() => { setModalVisible(false); navigation.navigate('HomeUnauth'); }}
+            >
+              <Text style={styles.modalBtnText}>Siguiente</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
       </SafeAreaView>
     </KeyboardAvoidingView>
   );
@@ -498,5 +528,62 @@ const styles = StyleSheet.create({
     fontSize: FONTS.sizes.md,
     color: COLORS.primary,
     fontWeight: '600',
+  },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: '#00000066',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  modalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    alignItems: 'center',
+  },
+  modalClose: {
+    position: 'absolute',
+    top: 14,
+    right: 16,
+  },
+  modalCloseText: {
+    fontSize: 18,
+    color: '#555555',
+  },
+  modalIcon: {
+    marginBottom: 8,
+    marginTop: 8,
+  },
+  modalIconText: {
+    fontSize: 40,
+    color: '#1A1A1A',
+  },
+  modalTitulo: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    marginBottom: 12,
+  },
+  modalMensaje: {
+    fontSize: 14,
+    color: '#555555',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  modalBtn: {
+    backgroundColor: '#8b0000',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 40,
+  },
+  modalBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 15,
   },
 });

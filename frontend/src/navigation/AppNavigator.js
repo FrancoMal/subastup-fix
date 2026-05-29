@@ -8,6 +8,8 @@ import HomeUnauthenticatedScreen from '../screens/tabs/HomeUnauthenticatedScreen
 import AuthNavigator            from './AuthNavigator';
 import TabNavigator             from './TabNavigator';
 import AuctionListScreen from '../screens/auction/AuctionListScreen';
+import AuctionDetailScreen from '../screens/auction/AuctionDetailScreen';
+import RegisterScreen2 from '../screens/auth/RegisterScreen2';
 
 
 const Stack = createNativeStackNavigator();
@@ -34,12 +36,15 @@ export default function AppNavigator() {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!isLoggedIn ? (
           <>
-            <Stack.Screen name="HomeUnauth" component={HomeUnauthenticatedScreen} />
-            <Stack.Screen name="AuctionList" component={AuctionListScreen} /> 
+            <Stack.Screen name="HomeUnauth" component={HomeUnauthenticatedScreen} options={{ gestureEnabled: false }} />
+            <Stack.Screen name="AuctionList" component={AuctionListScreen} />
+            <Stack.Screen name="RegisterStep2" component={RegisterScreen2} />
             <Stack.Screen name="Auth" component={AuthNavigator} options={{ animationEnabled: false }} />
+            <Stack.Screen name="AuctionDetail" component={AuctionDetailScreen} />
           </>
         ) : (
           <Stack.Screen name="Main" component={TabNavigator} />
+
         )}
       </Stack.Navigator>
     </NavigationContainer>
