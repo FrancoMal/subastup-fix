@@ -9,12 +9,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const LOGO             = require('../assets/images/texto_appbar.jpeg');
-const IMG_PLACEHOLDER1 = require('../assets/images/imagen_menu1.jpeg');
-const IMG_PLACEHOLDER2 = require('../assets/images/imagen_menu2.jpeg');
-const BTN_CALENDARIO   = require('../assets/images/btn_calendario.jpeg');
-const BTN_LOGIN        = require('../assets/images/btn_login.jpeg');
-const BTN_REGISTER     = require('../assets/images/btn_register.jpeg');
+const LOGO             = require('../../assets/images/texto_appbar.jpeg');
+const IMG_PLACEHOLDER1 = require('../../assets/images/imagen_menu1.jpeg');
+const IMG_PLACEHOLDER2 = require('../../assets/images/imagen_menu2.jpeg');
+const BTN_CALENDARIO   = require('../../assets/images/btn_calendario.jpeg');
+const BTN_LOGIN        = require('../../assets/images/btn_login.jpeg');
+const BTN_REGISTER     = require('../../assets/images/btn_register.jpeg');
 
 export default function HomeUnauthenticatedScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -36,7 +36,7 @@ export default function HomeUnauthenticatedScreen({ navigation }) {
           <Image source={IMG_PLACEHOLDER1} style={styles.auctionImage} resizeMode="cover" />
           <TouchableOpacity
             style={styles.verMasButton}
-            onPress={() => console.log('Ver más subastas especiales')}
+            onPress={() => navigation.navigate('AuctionList', { auctionType: 'especial' })}
           >
             <Text style={styles.verMasText}>Ver mas</Text>
           </TouchableOpacity>
@@ -47,7 +47,7 @@ export default function HomeUnauthenticatedScreen({ navigation }) {
           <Image source={IMG_PLACEHOLDER2} style={styles.auctionImage} resizeMode="cover" />
           <TouchableOpacity
             style={styles.verMasButton}
-            onPress={() => console.log('Ver más subastas comunes')}
+            onPress={() => navigation.navigate('AuctionList', { auctionType: 'comun' })}
           >
             <Text style={styles.verMasText}>Ver mas</Text>
           </TouchableOpacity>

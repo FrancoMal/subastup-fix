@@ -1,0 +1,230 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  FlatList,
+  ScrollView,
+  StyleSheet,
+  Image,
+  Dimensions,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+
+const LOGO = require('../../assets/images/texto_appbar.jpeg');
+const { width } = Dimensions.get('window');
+const CARD_WIDTH = (width - 16 * 2 - 12) / 2;
+
+const CATEGORIAS = {
+  especial: ['Oro', 'Platino'],
+  comun:    ['Comun', 'Especial', 'Plata', 'Oro', 'Platino'],
+};
+
+const PRODUCTOS_MOCK = [
+  { id: '1', titulo: 'Cuadro de rosas',  moneda: 'U$D', proximamente: false, color: '#C9B99A' },
+  { id: '2', titulo: 'Silla de oficina', moneda: 'U$D', proximamente: true,  fecha: 'Martes 18, 15:00', color: '#B0BEC5' },
+  { id: '3', titulo: 'Lampara de pared', moneda: 'AR$', proximamente: false, color: '#A5C4A8' },
+  { id: '4', titulo: 'Auto antiguo',     moneda: 'AR$', proximamente: false, color: '#C4A58A' },
+];
+
+export default function AuctionListScreen({ navigation, route }) {
+  const insets = useSafeAreaInsets();
+  const auctionType = route?.params?.auctionType ?? 'comun';
+  const categorias  = CATEGORIAS[auctionType] ?? CATEGORIAS.comun;
+
+  const [search,   setSearch]   = useState('');
+  const [selected, setSelected] = useState(categorias[0]);
+
+  const productosFiltrados = PRODUCTOS_MOCK.filter(() => true);
+
+  const renderCard = ({ item, index }) => (
+    <TouchableOpacity
+      style={[styles.card, index % 2 === 0 ? { marginRight: 6 } : { marginLeft: 6 }]}
+      activeOpacity={0.85}
+      onPress={() => console.log('Ver producto', item.titulo)}
+    >
+      <View style={[styles.cardImage, { backgroundColor: item.color }]} />
+
+      <View style={styles.badge}>
+        <Text style={styles.badgeText}>{item.moneda}</Text>
+      </View>
+
+      {item.proximamente && (
+        <View style={styles.proximamenteOverlay}>
+          <Ionicons name="notifications-outline" size={22} color="#1A1A1A" />
+          <Text style={styles.proximamenteTitulo}>Proximamente</Text>
+          <Text style={styles.proximamenteFecha}>{item.fecha}</Text>
+        </View>
+      )}
+
+      <View style={styles.cardFooter}>
+        <Text style={styles.cardTitulo} numberOfLines={1}>{item.titulo}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+
+      {/* ── Top Bar ── */}
+      <View style={styles.topBar}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => navigation.navigate('HomeUnauth')}
+        >
+          <Ionicons name="arrow-back" size={26} color="#1A1A1A" />
+        </TouchableOpacity>
+
+        <Image source={LOGO} style={styles.logo} resizeMode="contain" />
+
+        <View style={styles.backBtn} />
+      </View>
+
+      {/* ── Búsqueda y chips FIJOS ── */}
+      <View style={styles.fixedHeader}>
+        <View style={styles.searchContainer}>
+          <Ionicons name="search-outline" size={20} color="#9E9E9E" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar"
+            placeholderTextColor="#9E9E9E"
+            value={search}
+            onChangeText={setSearch}
+          />
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.chipsScroll}
+          contentContainerStyle={styles.chipsContent}
+        >
+          {categorias.map((cat) => (
+            <TouchableOpacity
+              key={cat}
+              style={[styles.chip, selected === cat && styles.chipSelected]}
+              onPress={() => setSelected(cat)}
+            >
+              <Text style={[styles.chipText, selected === cat && styles.chipTextSelected]}>
+                {cat}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* ── Grid SCROLLEABLE ── */}
+      <FlatList
+        data={productosFiltrados}
+        keyExtractor={(item) => item.id}
+        numColumns={2}
+        renderItem={renderCard}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+      />
+
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container:   { flex: 1, backgroundColor: '#FFFFFF' },
+
+  topBar: {
+    height: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomColor: '#F0F0F0',
+  },
+  backBtn: { width: 36, alignItems: 'flex-start' },
+  logo:    { flex: 1, height: 32 },
+
+  fixedHeader: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#E0E0E0',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 48,
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  searchIcon:  { marginRight: 8 },
+  searchInput: { flex: 1, fontSize: 16, color: '#1A1A1A' },
+
+  chipsScroll:      { marginBottom: 8 },
+  chipsContent:     { gap: 8, paddingRight: 8 },
+  chip: {
+    height: 40,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#8b0000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  chipSelected:     { backgroundColor: '#8b0000' },
+  chipText:         { fontSize: 14, color: '#8b0000', fontWeight: '600' },
+  chipTextSelected: { color: '#FFFFFF' },
+
+  listContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 24 },
+
+  card: {
+    width: CARD_WIDTH,
+    height: 200,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    backgroundColor: '#F5F5F5',
+  },
+  cardImage: { width: '100%', height: '100%', position: 'absolute' },
+
+  badge: {
+    position: 'absolute',
+    top: 8, right: 8,
+    backgroundColor: '#FFFFFFCC',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  badgeText: { fontSize: 12, fontWeight: '700', color: '#1A1A1A' },
+
+  proximamenteOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#ffffffcc',
+  },
+  proximamenteTitulo: { fontSize: 13, fontWeight: '700', color: '#1A1A1A', marginTop: 4 },
+  proximamenteFecha:  { fontSize: 11, color: '#555555', marginTop: 2 },
+
+  cardFooter: {
+    position: 'absolute',
+    bottom: 0, left: 0, right: 0,
+    height: 40,
+    backgroundColor: '#8b0000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  cardTitulo: { fontSize: 13, color: '#FFFFFF', fontWeight: '600', textAlign: 'center' },
+});

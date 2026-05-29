@@ -10,9 +10,11 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useForm, Controller } from 'react-hook-form';
+import * as ImagePicker from 'expo-image-picker';
 
 import { COLORS, SPACING, RADIUS, FONTS } from '../../constants/colors';
 import useRegisterStore from '../../store/registerStore';
@@ -70,9 +72,23 @@ export default function RegisterScreen2({ navigation, route }) {
     // Aquí se enviaría a la API para completar el registro
   };
 
-  const handleFotoPress = (fotoKey) => {
-    // Aquí iría la lógica para seleccionar una foto desde la galería
-    console.log('Seleccionar foto:', fotoKey);
+  const handleFotoPress = async (fotoKey) => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permiso requerido', 'Se necesita acceso a la galería');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.7,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setFotos({ ...fotos, [fotoKey]: result.assets[0].uri });
+    }
   };
 
   return (

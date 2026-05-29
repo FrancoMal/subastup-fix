@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-const useRegisterStore = create((set) => ({
+const useRegisterStore = create((set, get) => ({
   // Datos del Paso 1
   step1Data: {
     nombre: '',
@@ -45,11 +45,12 @@ const useRegisterStore = create((set) => ({
 
   // Obtener todos los datos del registro
   getRegistroCompleto: () => {
-    return (state) => ({
+    const state = get();
+    return {
       ...state.step1Data,
       ...state.step2Data,
       fotos: state.fotos,
-    });
+    };
   },
 
   // Limpiar datos del registro (cuando cierre la app o termine el registro)

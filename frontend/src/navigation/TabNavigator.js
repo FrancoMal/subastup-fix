@@ -3,7 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/colors';
 
-import HomeScreen     from '../screens/tabs/HomeScreen';
+import HomeScreen     from '../screens/tabs/HomeAuthenticatedScreen';
 import SearchScreen   from '../screens/tabs/SearchScreen';
 import CalendarScreen from '../screens/tabs/CalendarScreen';
 import ChatsScreen    from '../screens/tabs/ChatsScreen';
