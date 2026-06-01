@@ -65,7 +65,7 @@ export default function HomeUnauthenticatedScreen({ navigation }) {
 
         <TouchableOpacity
           style={styles.navItemCenter}
-          onPress={() => console.log('Ver calendario')}
+          onPress={() => navigation.navigate('Calendar')}
         >
           <Image source={BTN_CALENDARIO} style={styles.navIconLarge} />
           <Text style={styles.navLabel}>Calendario</Text>

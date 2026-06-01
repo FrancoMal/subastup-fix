@@ -10,6 +10,7 @@ import TabNavigator             from './TabNavigator';
 import AuctionListScreen from '../screens/auction/AuctionListScreen';
 import AuctionDetailScreen from '../screens/auction/AuctionDetailScreen';
 import RegisterScreen2 from '../screens/auth/RegisterScreen2';
+import CalendarScreen from '../screens/tabs/CalendarScreen';
 
 
 const Stack = createNativeStackNavigator();
@@ -37,6 +38,7 @@ export default function AppNavigator() {
         {!isLoggedIn ? (
           <>
             <Stack.Screen name="HomeUnauth" component={HomeUnauthenticatedScreen} options={{ gestureEnabled: false }} />
+            <Stack.Screen name="Calendar" component={CalendarScreen} />
             <Stack.Screen name="AuctionList" component={AuctionListScreen} />
             <Stack.Screen name="RegisterStep2" component={RegisterScreen2} />
             <Stack.Screen name="Auth" component={AuthNavigator} options={{ animationEnabled: false }} />
