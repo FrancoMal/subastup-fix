@@ -7,16 +7,22 @@ import SplashScreen             from '../screens/SplashScreen';
 import HomeUnauthenticatedScreen from '../screens/tabs/HomeUnauthenticatedScreen';
 import AuthNavigator            from './AuthNavigator';
 import TabNavigator             from './TabNavigator';
-import AuctionListScreen from '../screens/auction/AuctionListScreen';
-import AuctionDetailScreen from '../screens/auction/AuctionDetailScreen';
-import RegisterScreen2 from '../screens/auth/RegisterScreen2';
-import CalendarScreen from '../screens/tabs/CalendarScreen';
+import AuctionListScreen    from '../screens/auction/AuctionListScreen';
+import AuctionDetailScreen  from '../screens/auction/AuctionDetailScreen';
+import RegisterScreen2      from '../screens/auth/RegisterScreen2';
+import CalendarScreen       from '../screens/tabs/CalendarScreen';
+import InformacionScreen    from '../screens/tabs/InformacionScreen';
+import AyudaScreen          from '../screens/tabs/AyudaScreen';
+import ConfiguracionScreen  from '../screens/tabs/ConfiguracionScreen';
 
 
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
   const { isLoggedIn, init } = useAuthStore();
+
+  const DEV_FORCE_LOGIN = true; // ← SOLO DESARROLLO, sacar antes de entregar
+
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,7 +41,7 @@ export default function AppNavigator() {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {!isLoggedIn ? (
+        {!isLoggedIn && !DEV_FORCE_LOGIN ? (
           <>
             <Stack.Screen name="HomeUnauth" component={HomeUnauthenticatedScreen} options={{ gestureEnabled: false }} />
             <Stack.Screen name="Calendar" component={CalendarScreen} />
@@ -45,8 +51,15 @@ export default function AppNavigator() {
             <Stack.Screen name="AuctionDetail" component={AuctionDetailScreen} />
           </>
         ) : (
-          <Stack.Screen name="Main" component={TabNavigator} />
-
+          <>
+            <Stack.Screen name="Main"           component={TabNavigator} />
+            <Stack.Screen name="AuctionList"    component={AuctionListScreen} />
+            <Stack.Screen name="AuctionDetail"  component={AuctionDetailScreen} />
+            <Stack.Screen name="Calendar"       component={CalendarScreen} />
+            <Stack.Screen name="Informacion"    component={InformacionScreen} />
+            <Stack.Screen name="Configuracion"  component={ConfiguracionScreen} />
+            <Stack.Screen name="Ayuda" component={AyudaScreen} />
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>

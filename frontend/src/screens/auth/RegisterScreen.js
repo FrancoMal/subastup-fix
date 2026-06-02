@@ -395,6 +395,11 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.md,
     alignSelf: 'flex-end',
     marginTop: SPACING.lg,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
   },
   nextButtonText: {
     color: COLORS.white,

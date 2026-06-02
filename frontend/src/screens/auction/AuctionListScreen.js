@@ -73,7 +73,7 @@ export default function AuctionListScreen({ navigation, route }) {
       <View style={styles.topBar}>
         <TouchableOpacity
           style={styles.backBtn}
-          onPress={() => navigation.navigate('HomeUnauth')}
+          onPress={() => navigation.goBack()}
         >
           <Ionicons name="arrow-back" size={26} color="#1A1A1A" />
         </TouchableOpacity>

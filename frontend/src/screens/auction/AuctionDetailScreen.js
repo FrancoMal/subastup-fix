@@ -224,8 +224,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#6e6e6e',
     justifyContent: 'center',
     alignItems: 'center',
-    width: '200%',          
-    alignSelf: 'center'
+    width: '200%',
+    alignSelf: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   btnNoPuedeText: {
     color: '#FFFFFF',
@@ -243,8 +248,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 8,
-    width: '90%',          
-    alignSelf: 'center'
+    width: '90%',
+    alignSelf: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
   },
   btnLoginIcon: { marginRight: 8 },
   btnLoginText: {

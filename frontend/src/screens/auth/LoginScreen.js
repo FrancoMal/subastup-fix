@@ -372,6 +372,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: SPACING.lg,
     marginBottom: SPACING.lg,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
   },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: COLORS.white, fontSize: FONTS.sizes.lg, fontWeight: '700' },
@@ -402,14 +407,14 @@ const styles = StyleSheet.create({
 
   // Modal
   modalOverlay:    { flex:1, backgroundColor:'#00000066', justifyContent:'center', alignItems:'center', paddingHorizontal:32 },
-  modalCard:       { backgroundColor:'#FFFFFF', borderRadius:20, padding:24, width:'100%', alignItems:'center' },
+  modalCard:       { backgroundColor:'#FFFFFF', borderRadius:20, padding:24, width:'100%', alignItems:'center', elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8 },
   modalClose:      { position:'absolute', top:14, right:16 },
   modalCloseText:  { fontSize:18, color:'#555555' },
   modalTitulo:     { fontSize:20, fontWeight:'700', color:'#1A1A1A', marginBottom:16 },
   modalInput:      { width:'100%', height:48, backgroundColor:'#E0E0E0', borderRadius:10, paddingHorizontal:14, fontSize:15, marginBottom:12 },
   modalInputError: { borderWidth:1.5, borderColor:'#C62828' },
   modalError:      { fontSize:12, color:'#C62828', marginBottom:8, textAlign:'center' },
-  modalBtn:        { backgroundColor:'#8b0000', borderRadius:10, paddingVertical:12, paddingHorizontal:40, marginBottom:12 },
+  modalBtn:        { backgroundColor:'#8b0000', borderRadius:10, paddingVertical:12, paddingHorizontal:40, marginBottom:12, elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.2, shadowRadius: 6 },
   modalBtnText:    { color:'#FFFFFF', fontWeight:'700', fontSize:15 },
   modalSubtexto:   { fontSize:13, color:'#555555', textAlign:'center', lineHeight:20 },
 });

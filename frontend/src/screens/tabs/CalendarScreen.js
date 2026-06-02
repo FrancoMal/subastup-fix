@@ -132,7 +132,7 @@ export default function CalendarScreen({ navigation }) {
 
       {/* ── Top Bar ── */}
       <View style={styles.topBar}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('HomeUnauth')}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={26} color="#1A1A1A" />
         </TouchableOpacity>
         <Image source={LOGO} style={styles.logo} resizeMode="contain" />
@@ -203,8 +203,8 @@ export default function CalendarScreen({ navigation }) {
         {/* ── Lista subastas ── */}
         <Text style={styles.seccionTitulo}>
           {diaSeleccionado
-            ? `Pujas del ${diaSeleccionado} de ${MESES[mes]}`
-            : 'Pujas este mes'
+            ? `Subastas del ${diaSeleccionado} de ${MESES[mes]}`
+            : 'Subastas este mes'
           }
         </Text>
 
@@ -336,6 +336,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 8,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
   },
   btnPujarText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
 
