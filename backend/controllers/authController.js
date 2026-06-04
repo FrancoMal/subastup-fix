@@ -365,18 +365,63 @@ exports.forgotPassword = async (req, res) => {
       await transporter.sendMail({
         from:    process.env.MAIL_FROM,
         to:      email.trim().toLowerCase(),
-        subject: 'Código de verificación',
+        subject: 'Código para restablecer tu contraseña — SubastUp',
         html: `
-          <div style="font-family:sans-serif;max-width:400px;margin:auto;padding:24px;border:1px solid #eee;border-radius:12px;">
-            <h2 style="color:#8b0000;">Recupero de contraseña</h2>
-            <p>Tu código de verificación es:</p>
-            <div style="font-size:36px;font-weight:bold;letter-spacing:8px;color:#1a1a1a;margin:16px 0;">
-              ${codigo}
+          <div style="font-family:sans-serif;max-width:600px;margin:auto;background:#ffffff;">
+
+            <!-- Header rojo -->
+            <div style="background:#8b0000;padding:24px 32px;text-align:center;border-radius:8px 8px 0 0;">
+              <span style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:1px;">SubastUp</span>
             </div>
-            <p style="color:#888;font-size:13px;">
-              Este código expira en ${process.env.VERIFY_CODE_EXPIRY_MINUTES || 15} minutos.<br/>
-              Si no solicitaste este código, ignorá este email.
-            </p>
+
+            <!-- Cuerpo -->
+            <div style="padding:36px 32px;border:1px solid #eeeeee;border-top:none;border-radius:0 0 8px 8px;">
+
+              <h2 style="color:#1a1a1a;font-size:22px;margin-bottom:8px;">
+                Recupero de contraseña 🔑
+              </h2>
+              <p style="color:#444444;font-size:15px;line-height:1.6;margin-bottom:24px;">
+                Recibimos una solicitud para restablecer la contraseña de tu cuenta.<br/>
+                Usá el siguiente código de verificación:
+              </p>
+
+              <!-- Código -->
+              <div style="border:2px dashed #8b0000;border-radius:10px;padding:20px;text-align:center;margin-bottom:24px;">
+                <p style="color:#8b0000;font-size:11px;font-weight:700;letter-spacing:3px;margin:0 0 10px 0;">
+                  🔐 &nbsp; CÓDIGO DE VERIFICACIÓN
+                </p>
+                <div style="font-size:40px;font-weight:700;letter-spacing:10px;color:#1a1a1a;">
+                  ${codigo}
+                </div>
+              </div>
+
+              <!-- Advertencia -->
+              <div style="border-left:4px solid #8b0000;background:#fff5f5;padding:12px 16px;border-radius:4px;margin-bottom:24px;">
+                <p style="color:#8b0000;font-size:13px;margin:0;">
+                  ⚠️ Este código expira en <strong>${process.env.VERIFY_CODE_EXPIRY_MINUTES || 15} minutos</strong>.
+                  Si no solicitaste este código, ignorá este email.
+                </p>
+              </div>
+
+              <p style="color:#666666;font-size:13px;line-height:1.6;">
+                Si necesitás ayuda, nuestro equipo de soporte está disponible para asistirte.<br/>
+                ¡Esperamos que disfrutes la experiencia!
+              </p>
+
+              <p style="color:#444444;font-size:14px;margin-top:28px;">
+                Saludos,<br/>
+                <strong>Equipo de Soporte — SubastUp</strong>
+              </p>
+            </div>
+
+            <!-- Footer -->
+            <div style="background:#8b0000;padding:16px 32px;text-align:center;border-radius:0 0 8px 8px;">
+              <p style="color:#ffffff;font-size:11px;margin:0;line-height:1.8;">
+                Este email fue enviado a vos porque solicitaste recuperar tu contraseña en SubastUp.<br/>
+                © ${new Date().getFullYear()} SubastUp — Todos los derechos reservados.
+              </p>
+            </div>
+
           </div>
         `,
       });
