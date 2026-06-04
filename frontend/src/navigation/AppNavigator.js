@@ -14,7 +14,10 @@ import CalendarScreen       from '../screens/tabs/CalendarScreen';
 import InformacionScreen    from '../screens/tabs/InformacionScreen';
 import AyudaScreen          from '../screens/tabs/AyudaScreen';
 import ConfiguracionScreen  from '../screens/tabs/ConfiguracionScreen';
-
+import MiCuentaScreen       from '../screens/profile/MiCuentaScreen';
+import CargarProductoScreen from '../screens/auction/CargarProductoScreen';
+import AuctionListAuthScreen    from '../screens/auction/AuctionListAuthScreen';
+import AuctionDetailAuthScreen  from '../screens/auction/AuctionDetailAuthScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -48,17 +51,18 @@ export default function AppNavigator() {
             <Stack.Screen name="AuctionList" component={AuctionListScreen} />
             <Stack.Screen name="RegisterStep2" component={RegisterScreen2} />
             <Stack.Screen name="Auth" component={AuthNavigator} options={{ animationEnabled: false }} />
-            <Stack.Screen name="AuctionDetail" component={AuctionDetailScreen} />
+            <Stack.Screen name="AuctionDetail"  component={AuctionDetailScreen} />
           </>
         ) : (
           <>
-            <Stack.Screen name="Main"           component={TabNavigator} />
-            <Stack.Screen name="AuctionList"    component={AuctionListScreen} />
-            <Stack.Screen name="AuctionDetail"  component={AuctionDetailScreen} />
-            <Stack.Screen name="Calendar"       component={CalendarScreen} />
-            <Stack.Screen name="Informacion"    component={InformacionScreen} />
-            <Stack.Screen name="Configuracion"  component={ConfiguracionScreen} />
-            <Stack.Screen name="Ayuda" component={AyudaScreen} />
+            <Stack.Screen name="Main"             component={TabNavigator} />
+            <Stack.Screen name="Calendar"         component={CalendarScreen} />
+            <Stack.Screen name="Informacion"      component={InformacionScreen} />
+            <Stack.Screen name="Configuracion"    component={ConfiguracionScreen} />
+            <Stack.Screen name="Ayuda"            component={AyudaScreen} />
+            <Stack.Screen name="MiCuenta"         component={MiCuentaScreen} />
+            <Stack.Screen name="CargarProducto"   component={CargarProductoScreen} />
+            <Stack.Screen name="PujarAuth"        component={AuctionListAuthScreen} />
           </>
         )}
       </Stack.Navigator>

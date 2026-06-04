@@ -16,17 +16,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useForm, Controller } from 'react-hook-form';
 import { COLORS, SPACING, RADIUS, FONTS } from '../../constants/colors';
-
-// Descomentar cuando haya backend:
-// import api from '../../services/api';
-// import { ENDPOINTS } from '../../constants/api';
+import api from '../../services/api';
+import { ENDPOINTS } from '../../constants/api';
 
 const LOGO = require('../../assets/images/banner_principal.jpeg');
 
 export default function ResetPasswordScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
-  const email  = route?.params?.email ?? '';
-  const code   = route?.params?.code  ?? '';
+  // resetToken viene de VerifyCodeScreen, que lo recibió del backend
+  const resetToken = route?.params?.resetToken ?? '';
 
   const [showPass1,  setShowPass1]  = useState(false);
   const [showPass2,  setShowPass2]  = useState(false);
@@ -49,14 +47,12 @@ export default function ResetPasswordScreen({ navigation, route }) {
 
     setLoading(true);
     try {
-      // ── Conectar con backend ──────────────────────────────
-      // await api.post(ENDPOINTS.RESET_PASSWORD, {
-      //   email,
-      //   code,
-      //   newPassword:     nuevaPassword,
-      //   confirmPassword: confirmarPassword,
-      // });
-      // ─────────────────────────────────────────────────────
+      // El backend espera: { resetToken, newPassword, confirmPassword }
+      await api.post(ENDPOINTS.RESET_PASSWORD, {
+        resetToken,
+        newPassword:     nuevaPassword,
+        confirmPassword: confirmarPassword,
+      });
 
       setLoading(false);
       Alert.alert(
@@ -66,7 +62,8 @@ export default function ResetPasswordScreen({ navigation, route }) {
       );
     } catch (err) {
       setLoading(false);
-      Alert.alert('Error', 'No se pudo actualizar la contraseña. Intentá de nuevo.');
+      const msg = err.response?.data?.message || 'No se pudo actualizar la contraseña. Intentá de nuevo.';
+      Alert.alert('Error', msg);
     }
   };
 

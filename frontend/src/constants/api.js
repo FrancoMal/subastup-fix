@@ -1,13 +1,19 @@
-// Cambiá esta IP por la de tu PC en la red WiFi
+// ── URL base del backend ──────────────────────────────────────────────────────
+// Android emulador:   'http://10.0.2.2:3000'
+// Dispositivo físico: IP de la PC en la red WiFi local (ej: 'http://192.168.1.X:3000')
 export const BASE_URL = 'http://192.168.1.100:3000';
 
 export const ENDPOINTS = {
-  LOGIN:           '/auth/login',
-  REGISTER:        '/auth/register',
+  // ── Auth (prefijo /api/auth montado en backend/server.js) ──────────────────
+  LOGIN:           '/api/auth/login',
+  REGISTER:        '/api/auth/register',
+  FORGOT_PASSWORD: '/api/auth/forgot-password',
+  VERIFY_CODE:     '/api/auth/verify-code',
+  RESET_PASSWORD:  '/api/auth/reset-password',
+  VALIDATE_USER:   '/api/auth/validate-user',
+
+  // ── Endpoints no implementados en backend (definidos para uso futuro) ───────
   LOGOUT:          '/auth/logout',
-  FORGOT_PASSWORD: '/auth/forgot-password',
-  VERIFY_CODE:     '/auth/verify-code',
-  RESET_PASSWORD:  '/auth/reset-password',
   ME:              '/users/me',
   MY_BIDS:         '/users/me/bids',
   MY_AUCTIONS:     '/users/me/auctions',

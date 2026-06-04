@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import api from '../../services/api';
+import { ENDPOINTS } from '../../constants/api';
 
 const LOGO = require('../../assets/images/banner_principal.jpeg');
 
@@ -36,12 +38,14 @@ export default function VerifyCodeScreen({ navigation, route }) {
     setError('');
 
     try {
-      // await api.post(ENDPOINTS.VERIFY_CODE, { email, code: codigo });
+      const response = await api.post(ENDPOINTS.VERIFY_CODE, { email, code: codigo });
       setLoading(false);
-      navigation.navigate('ResetPassword', { email, code: codigo });
+      // El backend devuelve { ok: true, message, resetToken }
+      navigation.navigate('ResetPassword', { resetToken: response.data.resetToken });
     } catch (err) {
       setLoading(false);
-      setError('El código ingresado no es válido. Revisá tu mail e intentá de nuevo.');
+      const msg = err.response?.data?.message || 'El código ingresado no es válido. Revisá tu mail e intentá de nuevo.';
+      setError(msg);
     }
   };
 

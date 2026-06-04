@@ -30,13 +30,13 @@ const MENU_BUTTONS = [
 
 const DRAWER_GROUPS = [
   [
-    { label: 'Cuenta',          icon: 'person-circle-outline', nav: 'Profile' },
+    { label: 'Cuenta',          icon: 'person-circle-outline', nav: 'MiCuenta' },
     { label: 'Configuracion',   icon: 'settings-outline',      nav: 'Configuracion' },
     { label: 'Ayuda',           icon: 'help-circle-outline', nav: 'Ayuda' }, 
   ],
   [
-    { label: 'Pujar',           icon: 'pricetag-outline',      nav: 'AuctionList', navParams: { auctionType: 'comun' } },
-    { label: 'Cargar producto', icon: 'add-square-outline',    nav: null },
+    { label: 'Pujar',           icon: 'flag-outline',      nav: 'PujarAuth', navParams: { auctionType: 'comun' } },
+    { label: 'Cargar producto', icon: 'add-circle-outline',    nav: 'CargarProducto'},
     { label: 'Mensajes',        icon: 'mail-outline',          nav: 'Search' },
   ],
   [
@@ -139,7 +139,7 @@ export default function HomeAuthenticatedScreen({ navigation }) {
           <Image source={IMG_PLACEHOLDER1} style={styles.auctionImage} resizeMode="cover" />
           <TouchableOpacity
             style={styles.verMasButton}
-            onPress={() => navigation.getParent()?.navigate('AuctionList', { auctionType: 'especial' })}
+            onPress={() => navigation.getParent()?.navigate('PujarAuth', { auctionType: 'especial' })}
           >
             <Text style={styles.verMasText}>Ver mas</Text>
           </TouchableOpacity>
@@ -150,7 +150,7 @@ export default function HomeAuthenticatedScreen({ navigation }) {
           <Image source={IMG_PLACEHOLDER2} style={styles.auctionImage} resizeMode="cover" />
           <TouchableOpacity
             style={styles.verMasButton}
-            onPress={() => navigation.getParent()?.navigate('AuctionList', { auctionType: 'comun' })}
+            onPress={() => navigation.getParent()?.navigate('PujarAuth', { auctionType: 'comun' })}
           >
             <Text style={styles.verMasText}>Ver mas</Text>
           </TouchableOpacity>

@@ -8,6 +8,7 @@ import {
   Animated,
   Image,
   Alert,
+  ScrollView, 
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -162,7 +163,11 @@ export default function ConfiguracionScreen({ navigation }) {
         <View style={{ width: 32 }} />
       </View>
 
-      <View style={[styles.scroll, { paddingBottom: insets.bottom + 16 }]}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
+        showsVerticalScrollIndicator={false}
+      >
 
         {/* ── Hero del usuario ─────────────────── */}
         <View style={styles.heroCard}>
@@ -193,19 +198,19 @@ export default function ConfiguracionScreen({ navigation }) {
           icon="person-outline"
           label="Editar perfil"
           sublabel="Nombre, foto y datos personales"
-          onPress={() => console.log('Editar perfil')}
+          onPress={() => navigation.navigate('MiCuenta')}
         />
         <ActionCard
           icon="card-outline"
           label="Metodos de pago"
           sublabel="Tarjetas y cuentas vinculadas"
-          onPress={() => console.log('Metodos de pago')}
+          onPress={() => console.log('Metodos de pago')} // cambiar cuando este la pantalla de métodos de pago
         />
         <ActionCard
           icon="hammer-outline"
           label="Mis subastas"
           sublabel="Historial y activas"
-          onPress={() => console.log('Mis subastas')}
+          onPress={() => console.log('Mis subastas')} // cambiar cuando este la pantalla de mis subastas
         />
 
         {/* ── Sección: Sistema ─────────────────── */}
@@ -266,7 +271,7 @@ export default function ConfiguracionScreen({ navigation }) {
           icon="help-circle-outline"
           label="Ayuda y soporte"
           sublabel="Centro de ayuda y contacto"
-          onPress={() => console.log('Ayuda')}
+          onPress={() => navigation.navigate('Ayuda')}
         />
 
         {/* ── Sección: Zona de peligro ─────────── */}
@@ -290,7 +295,7 @@ export default function ConfiguracionScreen({ navigation }) {
           <Text style={styles.footerText}>SubastUp v1.0.0</Text>
         </View>
 
-      </View>
+      </ScrollView>
     </View>
   );
 }

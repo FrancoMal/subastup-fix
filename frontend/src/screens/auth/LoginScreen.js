@@ -20,9 +20,8 @@ import { Ionicons } from '@expo/vector-icons';
 
 import useAuthStore from '../../store/authStore';
 import { COLORS, SPACING, RADIUS, FONTS } from '../../constants/colors';
-// Descomentar cuando haya backend:
-// import api from '../../services/api';
-// import { ENDPOINTS } from '../../constants/api';
+import api from '../../services/api';
+import { ENDPOINTS } from '../../constants/api';
 
 const LOGO = require('../../assets/images/banner_principal.jpeg');
 
@@ -70,9 +69,8 @@ export default function LoginScreen({ navigation }) {
     setForgotError('');
 
     try {
-      // ── Conectar con backend ──────────────────────────────
-      // await api.post(ENDPOINTS.FORGOT_PASSWORD, { email: forgotEmail });
-      // ─────────────────────────────────────────────────────
+      // El backend siempre devuelve ok: true (no revela si el mail existe)
+      await api.post(ENDPOINTS.FORGOT_PASSWORD, { email: forgotEmail });
 
       setForgotLoading(false);
       setForgotVisible(false);
@@ -81,7 +79,7 @@ export default function LoginScreen({ navigation }) {
 
     } catch (err) {
       setForgotLoading(false);
-      setForgotError('No encontramos una cuenta con ese mail. Intentá con otro.');
+      setForgotError('No se pudo enviar el código. Verificá tu conexión e intentá de nuevo.');
     }
   };
 

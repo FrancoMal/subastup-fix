@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useForm, Controller } from 'react-hook-form';
+import { Ionicons } from '@expo/vector-icons';
+
 
 import { COLORS, SPACING, RADIUS, FONTS } from '../../constants/colors';
 import useRegisterStore from '../../store/registerStore';
@@ -34,6 +36,10 @@ export default function RegisterScreen({ navigation }) {
   // Estado para controlar la pestaña activa
   const [activeTab, setActiveTab] = useState('register');
 
+  // Estado para visibilidad de passwords
+  const [showPassword,  setShowPassword]  = useState(false);
+  const [showConfirm,   setShowConfirm]   = useState(false);
+
   // Store de registro
   const step1Data = useRegisterStore((state) => state.step1Data);
   const setStep1Data = useRegisterStore((state) => state.setStep1Data);
@@ -42,6 +48,7 @@ export default function RegisterScreen({ navigation }) {
   const {
     control,
     handleSubmit,
+    watch,
     formState: { errors },
     reset,
   } = useForm({
@@ -57,7 +64,7 @@ export default function RegisterScreen({ navigation }) {
 
   // Se ejecuta cuando el formulario es válido
   const onSubmit = async (data) => {
-    // Guardar datos en el store
+    // Guardar datos en el store (incluye password)
     setStep1Data(data);
     // Navegar al Paso 2
     navigation.navigate('RegisterStep2');
@@ -236,6 +243,73 @@ export default function RegisterScreen({ navigation }) {
         />
         {errors.email && <Text style={styles.fieldError}>{errors.email.message}</Text>}
 
+        {/* Campo: Contraseña */}
+        <Text style={styles.label}>Contraseña</Text>
+        <View style={styles.passwordWrapper}>
+          <Controller
+            control={control}
+            name="password"
+            rules={{
+              required: 'La contraseña es obligatoria',
+              minLength: { value: 6, message: 'Mínimo 6 caracteres' },
+            }}
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                style={styles.passwordInput}
+                onBlur={onBlur}
+                onChangeText={onChange}
+                value={value}
+                placeholder=""
+                placeholderTextColor={COLORS.white}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+              />
+            )}
+          />
+          <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
+            <Ionicons
+              name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+              size={20}
+              color="#ffffff"
+            />
+          </TouchableOpacity>
+        </View>
+        {errors.password && <Text style={styles.fieldError}>{errors.password.message}</Text>}
+
+        {/* Campo: Confirmar Contraseña */}
+        <Text style={styles.label}>Repetir Contraseña</Text>
+        <View style={styles.passwordWrapper}>
+          <Controller
+            control={control}
+            name="confirmPassword"
+            rules={{
+              required: 'Confirmá tu contraseña',
+              validate: (val) =>
+                val === watch('password') || 'Las contraseñas no coinciden',
+            }}
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                style={styles.passwordInput}
+                onBlur={onBlur}
+                onChangeText={onChange}
+                value={value}
+                placeholder=""
+                placeholderTextColor={COLORS.white}
+                secureTextEntry={!showConfirm}
+                autoCapitalize="none"
+              />
+            )}
+          />
+          <TouchableOpacity onPress={() => setShowConfirm(!showConfirm)} style={styles.eyeBtn}>
+            <Ionicons
+              name={showConfirm ? 'eye-off-outline' : 'eye-outline'}
+              size={20}
+              color="#ffffff"
+            />
+          </TouchableOpacity>
+        </View>
+        {errors.confirmPassword && <Text style={styles.fieldError}>{errors.confirmPassword.message}</Text>}
+
         {/* Spacer */}
         <View style={styles.spacer} />
 
@@ -252,7 +326,7 @@ export default function RegisterScreen({ navigation }) {
   );
 }
 
-// ─── Estilos ────────────────────────────────────────────────────────────────
+// ─── Estilos ────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: COLORS.white },
@@ -375,6 +449,25 @@ const styles = StyleSheet.create({
   },
   inputError: { borderColor: COLORS.error },
 
+  // Password wrapper (input + eye icon)
+  passwordWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 48,
+    backgroundColor: COLORS.background,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  passwordInput: {
+    flex: 1,
+    fontSize: FONTS.sizes.md,
+    color: COLORS.white,
+  },
+  eyeBtn: { padding: 4 },
+
   fieldError: {
     fontSize: FONTS.sizes.xs,
     color: COLORS.error,
@@ -418,3 +511,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+

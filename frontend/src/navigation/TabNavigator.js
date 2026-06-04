@@ -4,32 +4,32 @@ import { Ionicons } from '@expo/vector-icons';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import HomeScreen          from '../screens/tabs/HomeAuthenticatedScreen';
-import ChatsScreen         from '../screens/chat/ChatsScreen';
+import HomeScreen           from '../screens/tabs/HomeAuthenticatedScreen';
+import ChatsScreen          from '../screens/chat/ChatsScreen';
 import CargarProductoScreen from '../screens/auction/CargarProductoScreen';
-import ProfileScreen       from '../screens/profile/ProfileScreen';
+import PujarAuth            from '../screens/auction/AuctionListAuthScreen';
 
 const Tab = createBottomTabNavigator();
+
+const TABS_CONFIG = [
+  { name: 'Home',     label: 'Inicio',   icon: 'home-outline' },
+  { name: 'Mensajes', label: 'Mensajes', icon: 'mail-outline' },
+  { name: 'Publicar', label: 'Publicar', icon: 'add-circle-outline' },
+  { name: 'Pujar',    label: 'Pujar',    icon: 'flag-outline' },
+];
 
 const CustomTabBar = ({ state, descriptors, navigation }) => {
   const insets = useSafeAreaInsets();
 
-  const TABS_CONFIG = [
-    { name: 'Home',     label: 'Inicio',   icon: 'home-outline' },
-    { name: 'Search',   label: 'Mensajes', icon: 'mail-outline' },
-    { name: 'Publicar', label: 'Publicar', icon: 'add-circle-outline' },
-    { name: 'Chats',    label: 'Pujar',    icon: 'flag-outline' },
-    { name: 'Profile',  label: 'Perfil',   icon: 'person-outline' },
-  ];
-
+  // Ocultar tab bar en la pantalla Publicar
   const activeRoute = state.routes[state.index];
   if (activeRoute.name === 'Publicar') return null;
 
   return (
-    <View style={[styles.bottomNav, { paddingBottom: insets.bottom + 8 }]}>
+    <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 4) }]}>
       {state.routes.map((route, i) => {
-        const isFocused = state.index === i;
-        const tabConfig = TABS_CONFIG.find(t => t.name === route.name);
+        const isFocused  = state.index === i;
+        const tabConfig  = TABS_CONFIG.find(t => t.name === route.name);
 
         const onPress = () => {
           const event = navigation.emit({
@@ -37,21 +37,16 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
             target: route.key,
             preventDefault: () => {},
           });
-
           if (!isFocused && !event.defaultPrevented) {
             navigation.navigate(route.name);
           }
         };
 
         return (
-          <TouchableOpacity
-            key={i}
-            style={styles.tabItem}
-            onPress={onPress}
-          >
+          <TouchableOpacity key={i} style={styles.tabItem} onPress={onPress}>
             <Ionicons
               name={tabConfig?.icon || 'help-outline'}
-              size={26}
+              size={24}
               color={isFocused ? '#8b0000' : '#9E9E9E'}
             />
             <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>
@@ -68,14 +63,12 @@ export default function TabNavigator() {
   return (
     <Tab.Navigator
       tabBar={(props) => <CustomTabBar {...props} />}
-      screenOptions={{
-        headerShown: false,
-      }}
+      screenOptions={{ headerShown: false }}
     >
       <Tab.Screen name="Home"     component={HomeScreen} />
-      <Tab.Screen name="Search"   component={ChatsScreen} />
-      <Tab.Screen name="Publicar" component={CargarProductoScreen} options={{ tabBarStyle: { display: 'none' } }} />
-      <Tab.Screen name="Chats"    component={ChatsScreen} />
+      <Tab.Screen name="Mensajes" component={ChatsScreen} />
+      <Tab.Screen name="Publicar" component={CargarProductoScreen} />
+      <Tab.Screen name="Pujar"    component={PujarAuth} />
     </Tab.Navigator>
   );
 }
@@ -88,11 +81,9 @@ const styles = StyleSheet.create({
     right: 16,
     flexDirection: 'row',
     backgroundColor: '#FFF5EC',
-    borderTopWidth: 0,
     borderRadius: 30,
     paddingTop: 10,
     paddingHorizontal: 8,
-    paddingBottom: 3,
     elevation: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -103,6 +94,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingBottom: 6,
   },
   tabLabel: {
     fontSize: 11,

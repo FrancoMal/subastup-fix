@@ -8,6 +8,7 @@ const useRegisterStore = create((set, get) => ({
     dni: '',
     telefono: '',
     email: '',
+    password: '',
   },
 
   // Datos del Paso 2
@@ -62,6 +63,7 @@ const useRegisterStore = create((set, get) => ({
         dni: '',
         telefono: '',
         email: '',
+        password: '',
       },
       step2Data: {
         direccion: '',

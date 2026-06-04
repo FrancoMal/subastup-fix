@@ -22,12 +22,15 @@ const useAuthStore = create((set) => ({
     set({ isLoading: true, error: null });
     try {
       const { data } = await api.post(ENDPOINTS.LOGIN, { email, password });
+      // El backend devuelve { ok, token, usuario: { nombre, documento, email, registroId } }
+      const userData = { id: data.usuario.registroId, name: data.usuario.nombre };
       await AsyncStorage.setItem('token', data.token);
-      await AsyncStorage.setItem('user', JSON.stringify({ id: data.userId, name: data.name }));
-      set({ token: data.token, user: { id: data.userId, name: data.name }, isLoggedIn: true, isLoading: false });
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
+      set({ token: data.token, user: userData, isLoggedIn: true, isLoading: false });
     } catch (err) {
-      const msg = err.response?.data?.error || 'Error al iniciar sesión';
-      set({ error: msg, isLoading: false });
+      // El backend puede devolver pendiente: true cuando la cuenta aún no fue aprobada
+      const msg = err.response?.data?.message || err.response?.data?.error || 'Error al iniciar sesión';
+      set({ error: msg, isLoggedIn: false, isLoading: false });
       throw new Error(msg);
     }
   },
@@ -35,12 +38,13 @@ const useAuthStore = create((set) => ({
   register: async (userData) => {
     set({ isLoading: true, error: null });
     try {
+      // El backend devuelve { ok, message, registroId } — sin token.
+      // La cuenta queda pendiente de aprobación por un administrador.
       const { data } = await api.post(ENDPOINTS.REGISTER, userData);
-      await AsyncStorage.setItem('token', data.token);
-      await AsyncStorage.setItem('user', JSON.stringify({ id: data.userId, name: data.name }));
-      set({ token: data.token, user: { id: data.userId, name: data.name }, isLoggedIn: true, isLoading: false });
+      set({ isLoading: false });
+      return data;
     } catch (err) {
-      const msg = err.response?.data?.error || 'Error al registrarse';
+      const msg = err.response?.data?.message || err.response?.data?.error || 'Error al registrarse';
       set({ error: msg, isLoading: false });
       throw new Error(msg);
     }

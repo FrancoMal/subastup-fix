@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
 
   /* Tamaño del logo: ancho 65% de pantalla, altura proporcional */
   logo: {
-    width: '65%',
+    width: '100%',
     height: undefined,
     aspectRatio: 2.5, // ajustar si la imagen tiene otra proporción
   },

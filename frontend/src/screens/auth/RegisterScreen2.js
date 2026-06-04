@@ -19,6 +19,8 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { COLORS, SPACING, RADIUS, FONTS } from '../../constants/colors';
 import useRegisterStore from '../../store/registerStore';
+import api from '../../services/api';
+import { ENDPOINTS } from '../../constants/api';
 
 // Logo de la app
 const LOGO = require('../../assets/images/banner_principal.jpeg');
@@ -64,18 +66,64 @@ export default function RegisterScreen2({ navigation, route }) {
   const onSubmit = async (data) => {
     try {
       setStep2Data(data);
-      const registroCompleto = { ...step1Data, ...data, fotos };
-      console.log('Registro completo:', registroCompleto);
+
+      // Convertir foto1 a base64 si existe
+      let foto1Base64 = null;
+      if (fotos.foto1) {
+        const resp = await fetch(fotos.foto1);
+        const blob = await resp.blob();
+        foto1Base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror  = reject;
+          reader.readAsDataURL(blob);
+        });
+      }
+
+      // Convertir foto2 a base64 si existe
+      let foto2Base64 = null;
+      if (fotos.foto2) {
+        const resp = await fetch(fotos.foto2);
+        const blob = await resp.blob();
+        foto2Base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror  = reject;
+          reader.readAsDataURL(blob);
+        });
+      }
+
+      // Construir payload con los nombres exactos del backend
+      const payload = {
+        nombre:       step1Data.nombre,
+        apellido:     step1Data.apellido,
+        dni:          step1Data.dni,
+        telefono:     step1Data.telefono,
+        email:        step1Data.email,
+        password:     step1Data.password,
+        direccion:    data.direccion,
+        numero:       data.numero,
+        ciudad:       data.ciudad,
+        codigoPostal: data.codigoPostal,
+        pais:         data.pais,
+        foto1Base64,
+        foto2Base64,
+      };
+
+      // Enviar al backend (POST /api/auth/register)
+      await api.post(ENDPOINTS.REGISTER, payload);
+
+      // Limpiar estado local
       reset();
       clearRegistration();
       setFotos({ foto1: null, foto2: null });
+
+      // Mostrar modal de éxito (la cuenta queda pendiente de aprobación)
       setModalVisible(true);
+
     } catch (err) {
-      Alert.alert(
-        'Error',
-        'Hubo un problema al enviar el registro. Intentá de nuevo.',
-        [{ text: 'OK' }]
-      );
+      const msg = err.response?.data?.message || err.message || 'Hubo un problema al enviar el registro. Intentá de nuevo.';
+      Alert.alert('Error', msg);
     }
   };
 
