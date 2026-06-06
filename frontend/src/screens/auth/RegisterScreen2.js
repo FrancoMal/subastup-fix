@@ -16,6 +16,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { useForm, Controller } from 'react-hook-form';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 
 import { COLORS, SPACING, RADIUS, FONTS } from '../../constants/colors';
 import useRegisterStore from '../../store/registerStore';
@@ -67,63 +68,37 @@ export default function RegisterScreen2({ navigation, route }) {
     try {
       setStep2Data(data);
 
-      // Convertir foto1 a base64 si existe
-      let foto1Base64 = null;
-      if (fotos.foto1) {
-        const resp = await fetch(fotos.foto1);
-        const blob = await resp.blob();
-        foto1Base64 = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result);
-          reader.onerror  = reject;
-          reader.readAsDataURL(blob);
+      // Convertir fotos a Base64
+      const toBase64 = async (uri) => {
+        if (!uri) return null;
+        return await FileSystem.readAsStringAsync(uri, {
+          encoding: FileSystem.EncodingType.Base64,
         });
-      }
+      };
 
-      // Convertir foto2 a base64 si existe
-      let foto2Base64 = null;
-      if (fotos.foto2) {
-        const resp = await fetch(fotos.foto2);
-        const blob = await resp.blob();
-        foto2Base64 = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result);
-          reader.onerror  = reject;
-          reader.readAsDataURL(blob);
-        });
-      }
+      const foto1Base64 = await toBase64(fotos.foto1);
+      const foto2Base64 = await toBase64(fotos.foto2);
 
-      // Construir payload con los nombres exactos del backend
+      // Armar payload con todos los campos
       const payload = {
-        nombre:       step1Data.nombre,
-        apellido:     step1Data.apellido,
-        dni:          step1Data.dni,
-        telefono:     step1Data.telefono,
-        email:        step1Data.email,
-        password:     step1Data.password,
-        direccion:    data.direccion,
-        numero:       data.numero,
-        ciudad:       data.ciudad,
-        codigoPostal: data.codigoPostal,
-        pais:         data.pais,
+        ...step1Data,
+        ...data,
         foto1Base64,
         foto2Base64,
       };
 
-      // Enviar al backend (POST /api/auth/register)
       await api.post(ENDPOINTS.REGISTER, payload);
 
-      // Limpiar estado local
       reset();
       clearRegistration();
       setFotos({ foto1: null, foto2: null });
-
-      // Mostrar modal de éxito (la cuenta queda pendiente de aprobación)
       setModalVisible(true);
 
     } catch (err) {
-      const msg = err.response?.data?.message || err.message || 'Hubo un problema al enviar el registro. Intentá de nuevo.';
-      Alert.alert('Error', msg);
+      Alert.alert(
+        'Error',
+        err.response?.data?.message || 'No se pudo completar el registro.'
+      );
     }
   };
 

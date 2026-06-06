@@ -1,18 +1,17 @@
 version: '3.8'
-
 services:
-  sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+  postgres:
+    image: postgres:16
     container_name: subastup-db
+    restart: always
     environment:
-      - ACCEPT_EULA=Y
-      - MSSQL_SA_PASSWORD=SubastUP2026!
+      POSTGRES_DB: subastup
+      POSTGRES_USER: subastup_user
+      POSTGRES_PASSWORD: SubastUP2026
     ports:
-      - "1433:1433"
+      - "5432:5432"
     volumes:
-      - sqlserver-data:/var/opt/mssql # Esto hace que los datos no se borren si apagás el contenedor
+      - postgres-data:/var/lib/postgresql/data
 
 volumes:
-  sqlserver-data:
-
-  
+  postgres-data:

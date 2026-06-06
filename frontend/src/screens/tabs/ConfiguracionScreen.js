@@ -12,8 +12,11 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import useAuthStore from '../../store/authStore';
 
 const USER_AVATAR = require('../../assets/images/avatar.jpeg'); // reemplazá con tu ruta
+
+const logout = useAuthStore((state) => state.logout);
 
 // ─────────────────────────────────────────────
 //  Tarjeta de acción simple (con flecha)
@@ -146,7 +149,7 @@ export default function ConfiguracionScreen({ navigation }) {
       '¿Querés cerrar sesión?',
       [
         { text: 'Cancelar', style: 'cancel' },
-        { text: 'Cerrar sesión', style: 'destructive', onPress: () => console.log('Cerrar sesión') },
+        { text: 'Cerrar sesión', style: 'destructive', onPress: () => logout() },
       ]
     );
   };

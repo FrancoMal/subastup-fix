@@ -1,635 +1,379 @@
 // controllers/authController.js
-// Lógica de negocio para autenticación y registro
+// Autenticación completa con Prisma + PostgreSQL
 
-const bcrypt    = require('bcryptjs');
-const jwt       = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
-const { getPool, sql } = require('../config/db');
+require('dotenv').config();
+const bcrypt     = require('bcryptjs');
+const jwt        = require('jsonwebtoken');
+const prisma     = require('../config/prisma');
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+const { enviarResetPassword } = require('../services/mailService');
 
-/** Genera un código numérico de N dígitos */
-function generarCodigo(digitos = 6) {
-  const min = Math.pow(10, digitos - 1);
-  const max = Math.pow(10, digitos) - 1;
-  return String(Math.floor(Math.random() * (max - min + 1)) + min);
-}
+// ── Helpers ───────────────────────────────────────────────────
+const generateCode = () =>
+  Math.floor(100000 + Math.random() * 900000).toString();
 
-/** Configura el transporter de nodemailer usando las variables de entorno */
-function crearTransporter() {
-  return nodemailer.createTransport({
-    host:   process.env.MAIL_HOST,
-    port:   parseInt(process.env.MAIL_PORT) || 587,
-    secure: false,
-    auth: {
-      user: process.env.MAIL_USER,
-      pass: process.env.MAIL_PASS,
-    },
-  });
-}
+const codeExpiryMs = () =>
+  parseInt(process.env.VERIFY_CODE_EXPIRY_MINUTES || '15') * 60 * 1000;
 
-// ─── LOGIN ────────────────────────────────────────────────────────────────────
-
-/**
- * POST /api/auth/login
- * Body: { email, password }
- *
- * Flujo:
- *  1. Busca el registro por email.
- *  2. Verifica que el usuario esté validado (validado = 1).
- *  3. Verifica que la cuenta no esté bloqueada.
- *  4. Compara la contraseña con el hash.
- *  5. Incrementa intentos fallidos si la contraseña es incorrecta.
- *  6. Resetea intentos y registra ultimoAcceso si es correcta.
- *  7. Devuelve JWT.
- */
+// ─────────────────────────────────────────────────────────────
+// POST /api/auth/login
+// ─────────────────────────────────────────────────────────────
 exports.login = async (req, res) => {
-  const { email, password } = req.body;
-
-  if (!email || !password) {
-    return res.status(400).json({ ok: false, message: 'Email y contraseña son requeridos.' });
-  }
-
   try {
-    const pool = await getPool();
+    const { email, password } = req.body;
 
-    // Traer registro + login + persona
-    const result = await pool.request()
-      .input('email', sql.VarChar(200), email.trim().toLowerCase())
-      .query(`
-        SELECT
-          r.identificador  AS registroId,
-          r.validado,
-          r.motivoRechazo,
-          p.identificador  AS personaId,
-          p.nombre,
-          p.documento,
-          p.estado         AS estadoPersona,
-          l.identificador  AS loginId,
-          l.passwordHash,
-          l.salt,
-          l.intentosFallidos,
-          l.bloqueado,
-          l.ultimoAcceso
-        FROM registros r
-        INNER JOIN personas  p ON p.identificador = r.persona
-        INNER JOIN logins    l ON l.registro      = r.identificador
-        WHERE r.email = @email
-      `);
+    if (!email || !password)
+      return res.status(400).json({ ok: false, message: 'Email y contraseña son requeridos.' });
 
-    if (result.recordset.length === 0) {
+    // Buscar registro con persona y login incluidos
+    const registro = await prisma.registros.findFirst({
+      where: { email: email.toLowerCase().trim() },
+      include: {
+        personas: true,
+        logins:   true,
+      },
+    });
+
+    if (!registro)
       return res.status(401).json({ ok: false, message: 'Email o contraseña incorrectos.' });
+
+    // Verificar estado de la cuenta
+    if (registro.estado !== 'aprobado') {
+      let message;
+      if (registro.estado === 'pendiente')
+        message = 'Tu cuenta aún no fue aprobada por un administrador.';
+      else if (registro.estado === 'rechazado')
+        message = `Tu cuenta fue rechazada. Motivo: ${registro.motivoRechazo || 'Sin especificar'}`;
+      else if (registro.estado === 'en pausa')
+        message = 'Tu cuenta está suspendida. Contactá al soporte.';
+      else
+        message = 'Tu cuenta no está habilitada.';
+      return res.status(403).json({ ok: false, message, estado: registro.estado });
     }
 
-    const user = result.recordset[0];
+    const login = registro.logins;
+    if (!login)
+      return res.status(401).json({ ok: false, message: 'Email o contraseña incorrectos.' });
 
-    // ── Verificación de validado (aprobado por admin) ──────────────────────
-    if (!user.validado) {
-      const mensaje = user.motivoRechazo
-        ? `Tu cuenta fue rechazada: ${user.motivoRechazo}`
-        : 'Tu cuenta aún no fue aprobada por un administrador. Revisá tu correo.';
-      return res.status(403).json({ ok: false, message: mensaje, pendiente: true });
-    }
+    // Verificar bloqueo
+    if (login.bloqueado)
+      return res.status(403).json({ ok: false, message: 'Cuenta bloqueada por múltiples intentos fallidos.' });
 
-    // ── Persona activa ─────────────────────────────────────────────────────
-    if (user.estadoPersona !== 'activo') {
-      return res.status(403).json({ ok: false, message: 'Tu cuenta está deshabilitada.' });
-    }
-
-    // ── Cuenta bloqueada por intentos ─────────────────────────────────────
-    if (user.bloqueado) {
-      return res.status(403).json({
-        ok: false,
-        message: 'Tu cuenta está bloqueada por demasiados intentos fallidos. Contactá al soporte.',
-      });
-    }
-
-    // ── Verificar contraseña ───────────────────────────────────────────────
-    const passwordOk = await bcrypt.compare(password, user.passwordHash);
+    // Verificar contraseña
+    const passwordOk = await bcrypt.compare(password, login.passwordHash);
 
     if (!passwordOk) {
-      const nuevoIntentos = user.intentosFallidos + 1;
-      const bloquear = nuevoIntentos >= 5; // bloquear al 5to intento fallido
-
-      await pool.request()
-        .input('loginId',   sql.Int, user.loginId)
-        .input('intentos',  sql.Int, nuevoIntentos)
-        .input('bloqueado', sql.Bit, bloquear ? 1 : 0)
-        .query(`
-          UPDATE logins
-          SET intentosFallidos = @intentos,
-              bloqueado        = @bloqueado
-          WHERE identificador  = @loginId
-        `);
-
-      if (bloquear) {
-        return res.status(403).json({
-          ok: false,
-          message: 'Cuenta bloqueada por demasiados intentos. Contactá al soporte.',
-        });
-      }
-
+      // Incrementar intentos fallidos
+      const nuevosIntentos = login.intentosFallidos + 1;
+      await prisma.logins.update({
+        where: { registro: registro.identificador },
+        data: {
+          intentosFallidos: nuevosIntentos,
+          bloqueado:        nuevosIntentos >= 5,
+        },
+      });
       return res.status(401).json({ ok: false, message: 'Email o contraseña incorrectos.' });
     }
 
-    // ── Login exitoso: resetear intentos y registrar acceso ───────────────
-    await pool.request()
-      .input('loginId', sql.Int, user.loginId)
-      .query(`
-        UPDATE logins
-        SET intentosFallidos = 0,
-            bloqueado        = 0,
-            ultimoAcceso     = GETDATE()
-        WHERE identificador  = @loginId
-      `);
+    // Resetear intentos y actualizar último acceso
+    await prisma.logins.update({
+      where: { registro: registro.identificador },
+      data: {
+        intentosFallidos: 0,
+        bloqueado:        false,
+        ultimoAcceso:     new Date(),
+      },
+    });
 
-    // ── Generar JWT ────────────────────────────────────────────────────────
+    // Generar JWT
     const token = jwt.sign(
       {
-        registroId: user.registroId,
-        personaId:  user.personaId,
-        email:      email.trim().toLowerCase(),
+        registroId: registro.identificador,
+        personaId:  registro.personas.identificador,
+        email:      registro.email,
       },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
-    return res.status(200).json({
+    return res.json({
       ok: true,
-      message: 'Login exitoso.',
       token,
       usuario: {
-        nombre:     user.nombre,
-        documento:  user.documento,
-        email:      email.trim().toLowerCase(),
-        registroId: user.registroId,
+        registroId: registro.identificador,
+        nombre:     registro.personas.nombre,
+        documento:  registro.personas.documento,
+        email:      registro.email,
       },
     });
 
   } catch (err) {
-    console.error('Error en login:', err);
+    console.error('login error:', err);
     return res.status(500).json({ ok: false, message: 'Error interno del servidor.' });
   }
 };
 
-// ─── REGISTRO ─────────────────────────────────────────────────────────────────
-
-/**
- * POST /api/auth/register
- * Body: {
- *   nombre, apellido, dni, telefono, email, password,
- *   direccion, numero, ciudad, codigoPostal, pais,
- *   foto1Base64?, foto2Base64?
- * }
- *
- * Flujo:
- *  1. Verifica que el email no exista.
- *  2. Verifica que el DNI no exista.
- *  3. Inserta persona (estado = 'activo').
- *  4. Inserta en registros (validado = 0 → pendiente de aprobación admin).
- *  5. Hashea la contraseña e inserta en logins.
- *  6. Si hay fotos, las guarda en la tabla fotos (requiere un producto asociado, aquí las guarda en personas.foto como primera foto).
- *  7. Devuelve mensaje de éxito.
- */
+// ─────────────────────────────────────────────────────────────
+// POST /api/auth/register
+// ─────────────────────────────────────────────────────────────
 exports.register = async (req, res) => {
-  const {
-    nombre, apellido, dni, telefono, email, password,
-    direccion, numero, ciudad, codigoPostal, pais,
-    foto1Base64, foto2Base64,
-  } = req.body;
-
-  // Validaciones básicas
-  if (!nombre || !apellido || !dni || !email || !password) {
-    return res.status(400).json({ ok: false, message: 'Faltan datos obligatorios.' });
-  }
-
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    return res.status(400).json({ ok: false, message: 'El formato del email no es válido.' });
-  }
-
-  if (password.length < 6) {
-    return res.status(400).json({ ok: false, message: 'La contraseña debe tener al menos 6 caracteres.' });
-  }
-
   try {
-    const pool = await getPool();
+    const {
+      nombre, apellido, dni, telefono, email, password,
+      direccion, numero, pais, ciudad, codigoPostal,
+      foto1Base64, foto2Base64,
+    } = req.body;
 
-    // ── Email duplicado ────────────────────────────────────────────────────
-    const emailCheck = await pool.request()
-      .input('email', sql.VarChar(200), email.trim().toLowerCase())
-      .query(`SELECT 1 FROM registros WHERE email = @email`);
+    if (!nombre || !apellido || !dni || !email || !password)
+      return res.status(400).json({ ok: false, message: 'Faltan campos obligatorios.' });
 
-    if (emailCheck.recordset.length > 0) {
+    // Verificar email duplicado
+    const existe = await prisma.registros.findFirst({
+      where: { email: email.toLowerCase().trim() },
+    });
+    if (existe)
       return res.status(409).json({ ok: false, message: 'Ya existe una cuenta con ese email.' });
-    }
 
-    // ── DNI duplicado ──────────────────────────────────────────────────────
-    const dniCheck = await pool.request()
-      .input('dni', sql.VarChar(20), dni.trim())
-      .query(`SELECT 1 FROM personas WHERE documento = @dni`);
+    // Hash de contraseña
+    const salt         = await bcrypt.genSalt(12);
+    const passwordHash = await bcrypt.hash(password, salt);
 
-    if (dniCheck.recordset.length > 0) {
-      return res.status(409).json({ ok: false, message: 'Ya existe una cuenta con ese DNI.' });
-    }
-
-    // ── Armar dirección completa ───────────────────────────────────────────
-    const direccionCompleta = [direccion, numero, ciudad, codigoPostal, pais]
+    // Dirección completa
+    const direccionCompleta = [direccion, numero, ciudad, pais, codigoPostal]
       .filter(Boolean)
       .join(', ');
 
-    // ── Convertir foto1 a buffer si viene en base64 ────────────────────────
-    let fotoBuffer = null;
-    if (foto1Base64) {
-      const base64Data = foto1Base64.replace(/^data:image\/\w+;base64,/, '');
-      fotoBuffer = Buffer.from(base64Data, 'base64');
-    }
+    // Transacción: crear persona + registro + login + fotos
+    const resultado = await prisma.$transaction(async (tx) => {
+      // 1. Persona
+      const persona = await tx.personas.create({
+        data: {
+          documento: dni.trim(),
+          nombre:    `${nombre.trim()} ${apellido.trim()}`,
+          direccion: direccionCompleta || null,
+          estado:    'activo',
+          foto:      foto1Base64 ? Buffer.from(foto1Base64, 'base64') : null,
+        },
+      });
 
-    // ── Insertar en personas ───────────────────────────────────────────────
-    const personaResult = await pool.request()
-      .input('documento',  sql.VarChar(20),       dni.trim())
-      .input('nombre',     sql.VarChar(150),       `${nombre.trim()} ${apellido.trim()}`)
-      .input('direccion',  sql.VarChar(250),       direccionCompleta || null)
-      .input('estado',     sql.VarChar(15),        'activo')
-      .input('foto',       sql.VarBinary(sql.MAX), fotoBuffer)
-      .query(`
-        INSERT INTO personas (documento, nombre, direccion, estado, foto)
-        OUTPUT INSERTED.identificador
-        VALUES (@documento, @nombre, @direccion, @estado, @foto)
-      `);
+      // 2. Registro
+      const registro = await tx.registros.create({
+        data: {
+          persona:  persona.identificador,
+          email:    email.toLowerCase().trim(),
+          telefono: telefono?.trim() || null,
+          estado:   'pendiente',
+        },
+      });
 
-    const personaId = personaResult.recordset[0].identificador;
+      // 3. Login
+      await tx.logins.create({
+        data: {
+          registro:     registro.identificador,
+          passwordHash,
+          salt,
+          intentosFallidos: 0,
+          bloqueado:        false,
+        },
+      });
 
-    // ── Generar token de verificación ──────────────────────────────────────
-    const tokenVerif = require('crypto').randomBytes(32).toString('hex');
+      // 4. Fotos DNI
+      if (foto1Base64) {
+        await tx.fotosDNI.create({
+          data: {
+            registro: registro.identificador,
+            tipo:     'frente',
+            foto:     Buffer.from(foto1Base64, 'base64'),
+          },
+        });
+      }
+      if (foto2Base64) {
+        await tx.fotosDNI.create({
+          data: {
+            registro: registro.identificador,
+            tipo:     'dorso',
+            foto:     Buffer.from(foto2Base64, 'base64'),
+          },
+        });
+      }
 
-    // ── Insertar en registros (validado = 0 → pendiente de aprobación) ─────
-    const registroResult = await pool.request()
-      .input('persona',      sql.Int,         personaId)
-      .input('email',        sql.VarChar(200), email.trim().toLowerCase())
-      .input('tokenVerif',   sql.VarChar(200), tokenVerif)
-      .query(`
-        INSERT INTO registros (persona, email, tokenVerif, validado)
-        OUTPUT INSERTED.identificador
-        VALUES (@persona, @email, @tokenVerif, 0)
-      `);
-
-    const registroId = registroResult.recordset[0].identificador;
-
-    // ── Hashear contraseña ─────────────────────────────────────────────────
-    const salt       = await bcrypt.genSalt(12);
-    const passwordHash = await bcrypt.hash(password, salt);
-
-    // ── Insertar en logins ─────────────────────────────────────────────────
-    await pool.request()
-      .input('registroId',   sql.Int,         registroId)
-      .input('passwordHash', sql.VarChar(512), passwordHash)
-      .input('salt',         sql.VarChar(100), salt)
-      .query(`
-        INSERT INTO logins (registro, passwordHash, salt)
-        VALUES (@registroId, @passwordHash, @salt)
-      `);
-
-    // ── Guardar foto2 si existe (como segunda imagen en tabla fotos) ────────
-    // Nota: fotos requiere un productoId; aquí las fotos de perfil se guardan
-    // en personas.foto. Si se necesita foto2, extendé esta lógica.
+      return { registroId: registro.identificador };
+    });
 
     return res.status(201).json({
-      ok: true,
-      message: 'Registro enviado correctamente. Un administrador revisará tus datos.',
-      registroId,
+      ok:         true,
+      message:    'Registro recibido. Un administrador revisará tus datos.',
+      registroId: resultado.registroId,
     });
 
   } catch (err) {
-    console.error('Error en registro:', err);
+    console.error('register error:', err);
     return res.status(500).json({ ok: false, message: 'Error interno del servidor.' });
   }
 };
 
-// ─── FORGOT PASSWORD ──────────────────────────────────────────────────────────
-
-/**
- * POST /api/auth/forgot-password
- * Body: { email }
- *
- * Flujo:
- *  1. Verifica que el email exista en registros.
- *  2. Genera un código de 6 dígitos.
- *  3. Guarda el código hasheado + expiración en logins (col tokenReset / expiracionReset).
- *     Como la tabla logins no tiene esas columnas en el SQL original, las guardamos
- *     en tokenVerif de registros (con prefijo "RESET:codigo:timestamp").
- *  4. Envía el código por email.
- */
+// ─────────────────────────────────────────────────────────────
+// POST /api/auth/forgot-password
+// ─────────────────────────────────────────────────────────────
 exports.forgotPassword = async (req, res) => {
-  const { email } = req.body;
-
-  if (!email) {
-    return res.status(400).json({ ok: false, message: 'El email es requerido.' });
-  }
-
   try {
-    const pool = await getPool();
+    const { email } = req.body;
 
-    const result = await pool.request()
-      .input('email', sql.VarChar(200), email.trim().toLowerCase())
-      .query(`
-        SELECT r.identificador AS registroId, r.validado
-        FROM registros r
-        WHERE r.email = @email
-      `);
+    if (!email)
+      return res.status(400).json({ ok: false, message: 'El email es requerido.' });
 
-    // Por seguridad, siempre respondemos OK (no revelar si el email existe)
-    if (result.recordset.length === 0) {
-      return res.status(200).json({
-        ok: true,
-        message: 'Si el email existe, recibirás un código de verificación.',
-      });
-    }
-
-    const { registroId, validado } = result.recordset[0];
-
-    // Generar código y timestamp de expiración
-    const codigo    = generarCodigo(6);
-    const expiresAt = Date.now() + (parseInt(process.env.VERIFY_CODE_EXPIRY_MINUTES) || 15) * 60 * 1000;
-    const tokenData = `RESET:${codigo}:${expiresAt}`;
-
-    // Guardar en tokenVerif del registro
-    await pool.request()
-      .input('registroId', sql.Int,         registroId)
-      .input('tokenVerif', sql.VarChar(200), tokenData)
-      .query(`UPDATE registros SET tokenVerif = @tokenVerif WHERE identificador = @registroId`);
-
-    // Enviar email con el código
-    try {
-      const transporter = crearTransporter();
-      await transporter.sendMail({
-        from:    process.env.MAIL_FROM,
-        to:      email.trim().toLowerCase(),
-        subject: 'Código para restablecer tu contraseña — SubastUp',
-        html: `
-          <div style="font-family:sans-serif;max-width:600px;margin:auto;background:#ffffff;">
-
-            <!-- Header rojo -->
-            <div style="background:#8b0000;padding:24px 32px;text-align:center;border-radius:8px 8px 0 0;">
-              <span style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:1px;">SubastUp</span>
-            </div>
-
-            <!-- Cuerpo -->
-            <div style="padding:36px 32px;border:1px solid #eeeeee;border-top:none;border-radius:0 0 8px 8px;">
-
-              <h2 style="color:#1a1a1a;font-size:22px;margin-bottom:8px;">
-                Recupero de contraseña 🔑
-              </h2>
-              <p style="color:#444444;font-size:15px;line-height:1.6;margin-bottom:24px;">
-                Recibimos una solicitud para restablecer la contraseña de tu cuenta.<br/>
-                Usá el siguiente código de verificación:
-              </p>
-
-              <!-- Código -->
-              <div style="border:2px dashed #8b0000;border-radius:10px;padding:20px;text-align:center;margin-bottom:24px;">
-                <p style="color:#8b0000;font-size:11px;font-weight:700;letter-spacing:3px;margin:0 0 10px 0;">
-                  🔐 &nbsp; CÓDIGO DE VERIFICACIÓN
-                </p>
-                <div style="font-size:40px;font-weight:700;letter-spacing:10px;color:#1a1a1a;">
-                  ${codigo}
-                </div>
-              </div>
-
-              <!-- Advertencia -->
-              <div style="border-left:4px solid #8b0000;background:#fff5f5;padding:12px 16px;border-radius:4px;margin-bottom:24px;">
-                <p style="color:#8b0000;font-size:13px;margin:0;">
-                  ⚠️ Este código expira en <strong>${process.env.VERIFY_CODE_EXPIRY_MINUTES || 15} minutos</strong>.
-                  Si no solicitaste este código, ignorá este email.
-                </p>
-              </div>
-
-              <p style="color:#666666;font-size:13px;line-height:1.6;">
-                Si necesitás ayuda, nuestro equipo de soporte está disponible para asistirte.<br/>
-                ¡Esperamos que disfrutes la experiencia!
-              </p>
-
-              <p style="color:#444444;font-size:14px;margin-top:28px;">
-                Saludos,<br/>
-                <strong>Equipo de Soporte — SubastUp</strong>
-              </p>
-            </div>
-
-            <!-- Footer -->
-            <div style="background:#8b0000;padding:16px 32px;text-align:center;border-radius:0 0 8px 8px;">
-              <p style="color:#ffffff;font-size:11px;margin:0;line-height:1.8;">
-                Este email fue enviado a vos porque solicitaste recuperar tu contraseña en SubastUp.<br/>
-                © ${new Date().getFullYear()} SubastUp — Todos los derechos reservados.
-              </p>
-            </div>
-
-          </div>
-        `,
-      });
-    } catch (mailErr) {
-      console.error('Error enviando email:', mailErr.message);
-      // No interrumpir el flujo; en dev el código puede verse en logs
-      console.log('🔑  Código de reset (dev):', codigo);
-    }
-
-    return res.status(200).json({
-      ok: true,
-      message: 'Si el email existe, recibirás un código de verificación.',
+    const registro = await prisma.registros.findFirst({
+      where: { email: email.toLowerCase().trim() },
     });
 
+    // Respuesta genérica por seguridad
+    if (!registro)
+      return res.json({ ok: true, message: 'Si el mail existe, recibirás el código.' });
+
+    const codigo    = generateCode();
+    const timestamp = Date.now();
+    const tokenVerif = `RESET:${codigo}:${timestamp}`;
+
+    await prisma.registros.update({
+      where: { identificador: registro.identificador },
+      data:  { tokenVerif },
+    });
+
+    await enviarResetPassword(registro.email, codigo);
+
+    console.log(`🔑  Código de reset (dev): ${codigo}`);
+
+    return res.json({ ok: true, message: 'Si el mail existe, recibirás el código.' });
+
   } catch (err) {
-    console.error('Error en forgot-password:', err);
+    console.error('forgotPassword error:', err);
     return res.status(500).json({ ok: false, message: 'Error interno del servidor.' });
   }
 };
 
-// ─── VERIFY CODE ─────────────────────────────────────────────────────────────
-
-/**
- * POST /api/auth/verify-code
- * Body: { email, code }
- *
- * Verifica que el código coincida y no haya expirado.
- * Devuelve un token temporal de un solo uso para el reset.
- */
+// ─────────────────────────────────────────────────────────────
+// POST /api/auth/verify-code
+// ─────────────────────────────────────────────────────────────
 exports.verifyCode = async (req, res) => {
-  const { email, code } = req.body;
-
-  if (!email || !code) {
-    return res.status(400).json({ ok: false, message: 'Email y código son requeridos.' });
-  }
-
   try {
-    const pool = await getPool();
+    const { email, code } = req.body;
 
-    const result = await pool.request()
-      .input('email', sql.VarChar(200), email.trim().toLowerCase())
-      .query(`
-        SELECT identificador AS registroId, tokenVerif
-        FROM registros
-        WHERE email = @email
-      `);
+    if (!email || !code)
+      return res.status(400).json({ ok: false, message: 'Email y código son requeridos.' });
 
-    if (result.recordset.length === 0) {
-      return res.status(400).json({ ok: false, message: 'Código inválido.' });
-    }
+    const registro = await prisma.registros.findFirst({
+      where: { email: email.toLowerCase().trim() },
+    });
 
-    const { registroId, tokenVerif } = result.recordset[0];
+    if (!registro || !registro.tokenVerif)
+      return res.status(400).json({ ok: false, message: 'Código inválido o expirado.' });
 
-    if (!tokenVerif || !tokenVerif.startsWith('RESET:')) {
-      return res.status(400).json({ ok: false, message: 'No hay un código activo para este email.' });
-    }
+    const [prefix, storedCode, timestamp] = registro.tokenVerif.split(':');
 
-    const parts   = tokenVerif.split(':');
-    const stored  = parts[1];
-    const expiry  = parseInt(parts[2]);
+    if (prefix !== 'RESET' || storedCode !== code.trim())
+      return res.status(400).json({ ok: false, message: 'El código ingresado no es correcto.' });
 
-    if (Date.now() > expiry) {
+    if (Date.now() - parseInt(timestamp) > codeExpiryMs())
       return res.status(400).json({ ok: false, message: 'El código expiró. Solicitá uno nuevo.' });
-    }
 
-    if (stored !== code.trim()) {
-      return res.status(400).json({ ok: false, message: 'El código ingresado no es válido.' });
-    }
-
-    // Código correcto → generar token temporal de reset (válido 10 min)
+    // Generar resetToken (JWT de un solo uso, 10 min)
     const resetToken = jwt.sign(
-      { registroId, email: email.trim().toLowerCase(), action: 'reset-password' },
+      { registroId: registro.identificador, email: registro.email, type: 'reset' },
       process.env.JWT_SECRET,
       { expiresIn: '10m' }
     );
 
-    return res.status(200).json({
-      ok: true,
-      message: 'Código verificado.',
-      resetToken,
+    // Limpiar el token del registro
+    await prisma.registros.update({
+      where: { identificador: registro.identificador },
+      data:  { tokenVerif: null },
     });
 
+    return res.json({ ok: true, resetToken });
+
   } catch (err) {
-    console.error('Error en verify-code:', err);
+    console.error('verifyCode error:', err);
     return res.status(500).json({ ok: false, message: 'Error interno del servidor.' });
   }
 };
 
-// ─── RESET PASSWORD ───────────────────────────────────────────────────────────
-
-/**
- * POST /api/auth/reset-password
- * Body: { resetToken, newPassword, confirmPassword }
- *
- * Usa el token temporal para actualizar la contraseña.
- */
+// ─────────────────────────────────────────────────────────────
+// POST /api/auth/reset-password
+// ─────────────────────────────────────────────────────────────
 exports.resetPassword = async (req, res) => {
-  const { resetToken, newPassword, confirmPassword } = req.body;
-
-  if (!resetToken || !newPassword || !confirmPassword) {
-    return res.status(400).json({ ok: false, message: 'Faltan datos requeridos.' });
-  }
-
-  if (newPassword !== confirmPassword) {
-    return res.status(400).json({ ok: false, message: 'Las contraseñas no coinciden.' });
-  }
-
-  if (newPassword.length < 6) {
-    return res.status(400).json({ ok: false, message: 'La contraseña debe tener al menos 6 caracteres.' });
-  }
-
   try {
-    // Verificar token temporal
+    const { resetToken, newPassword, confirmPassword } = req.body;
+
+    if (!resetToken || !newPassword || !confirmPassword)
+      return res.status(400).json({ ok: false, message: 'Todos los campos son requeridos.' });
+
+    if (newPassword !== confirmPassword)
+      return res.status(400).json({ ok: false, message: 'Las contraseñas no coinciden.' });
+
+    if (newPassword.length < 6)
+      return res.status(400).json({ ok: false, message: 'La contraseña debe tener al menos 6 caracteres.' });
+
+    // Verificar resetToken
     let decoded;
     try {
       decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
     } catch {
-      return res.status(400).json({ ok: false, message: 'El token expiró o no es válido. Iniciá el proceso de nuevo.' });
+      return res.status(400).json({ ok: false, message: 'Token inválido o expirado.' });
     }
 
-    if (decoded.action !== 'reset-password') {
-      return res.status(400).json({ ok: false, message: 'Token no válido para esta acción.' });
-    }
+    if (decoded.type !== 'reset')
+      return res.status(400).json({ ok: false, message: 'Token inválido.' });
 
-    const pool = await getPool();
-
-    // Verificar que el login exista
-    const loginResult = await pool.request()
-      .input('registroId', sql.Int, decoded.registroId)
-      .query(`SELECT identificador AS loginId FROM logins WHERE registro = @registroId`);
-
-    if (loginResult.recordset.length === 0) {
-      return res.status(404).json({ ok: false, message: 'Usuario no encontrado.' });
-    }
-
-    const { loginId } = loginResult.recordset[0];
-
-    // Hashear nueva contraseña
+    // Nuevo hash
     const salt         = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(newPassword, salt);
 
-    // Actualizar contraseña y desbloquear cuenta
-    await pool.request()
-      .input('loginId',      sql.Int,         loginId)
-      .input('passwordHash', sql.VarChar(512), passwordHash)
-      .input('salt',         sql.VarChar(100), salt)
-      .query(`
-        UPDATE logins
-        SET passwordHash     = @passwordHash,
-            salt             = @salt,
-            intentosFallidos = 0,
-            bloqueado        = 0
-        WHERE identificador  = @loginId
-      `);
-
-    // Limpiar el token de reset
-    await pool.request()
-      .input('registroId', sql.Int, decoded.registroId)
-      .query(`UPDATE registros SET tokenVerif = NULL WHERE identificador = @registroId`);
-
-    return res.status(200).json({
-      ok: true,
-      message: 'Contraseña actualizada correctamente. Ya podés iniciar sesión.',
+    await prisma.logins.update({
+      where: { registro: decoded.registroId },
+      data: {
+        passwordHash,
+        salt,
+        intentosFallidos: 0,
+        bloqueado:        false,
+      },
     });
 
+    return res.json({ ok: true, message: 'Contraseña actualizada correctamente.' });
+
   } catch (err) {
-    console.error('Error en reset-password:', err);
+    console.error('resetPassword error:', err);
     return res.status(500).json({ ok: false, message: 'Error interno del servidor.' });
   }
 };
 
-// ─── APROBAR / RECHAZAR USUARIO (Admin) ───────────────────────────────────────
-
-/**
- * POST /api/auth/validate-user
- * Body: { registroId, aprobar: true/false, motivoRechazo? }
- *
- * Endpoint de uso interno por administradores para aprobar o rechazar
- * un registro pendiente (cambia validado = 1 o 0 con motivoRechazo).
- */
+// ─────────────────────────────────────────────────────────────
+// POST /api/auth/validate-user  (ruta protegida — solo admin)
+// ─────────────────────────────────────────────────────────────
 exports.validateUser = async (req, res) => {
-  const { registroId, aprobar, motivoRechazo } = req.body;
-
-  if (registroId === undefined || aprobar === undefined) {
-    return res.status(400).json({ ok: false, message: 'registroId y aprobar son requeridos.' });
-  }
-
   try {
-    const pool = await getPool();
+    const { registroId, aprobar, motivoRechazo } = req.body;
 
-    await pool.request()
-      .input('registroId',    sql.Int,         registroId)
-      .input('validado',      sql.Bit,         aprobar ? 1 : 0)
-      .input('motivoRechazo', sql.VarChar(300), aprobar ? null : (motivoRechazo || 'Rechazado por el administrador'))
-      .query(`
-        UPDATE registros
-        SET validado      = @validado,
-            motivoRechazo = @motivoRechazo
-        WHERE identificador = @registroId
-      `);
+    if (!registroId)
+      return res.status(400).json({ ok: false, message: 'registroId es requerido.' });
 
-    return res.status(200).json({
-      ok: true,
-      message: aprobar ? 'Usuario aprobado.' : 'Usuario rechazado.',
+    const nuevoEstado = aprobar ? 'aprobado' : 'rechazado';
+
+    await prisma.registros.update({
+      where: { identificador: parseInt(registroId) },
+      data: {
+        estado:        nuevoEstado,
+        motivoRechazo: aprobar ? null : (motivoRechazo || 'Sin motivo especificado'),
+      },
+    });
+
+    return res.json({
+      ok:      true,
+      message: `Usuario ${nuevoEstado} correctamente.`,
+      estado:  nuevoEstado,
     });
 
   } catch (err) {
-    console.error('Error en validate-user:', err);
+    console.error('validateUser error:', err);
     return res.status(500).json({ ok: false, message: 'Error interno del servidor.' });
   }
 };

@@ -13,6 +13,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import useAuthStore from '../../store/authStore';
+
+const logout = useAuthStore((state) => state.logout);
 
 const LOGO             = require('../../assets/images/texto_appbar.jpeg');
 const IMG_PLACEHOLDER1 = require('../../assets/images/imagen_menu1.jpeg');
@@ -81,8 +84,18 @@ export default function HomeAuthenticatedScreen({ navigation }) {
 
   const handleItemPress = (item) => {
     closeMenu();
+    if (item.isLogout) {
+      Alert.alert(
+        'Cerrar sesión',
+        '¿Querés cerrar sesión?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Cerrar sesión', style: 'destructive', onPress: () => logout() },
+        ]
+      );
+      return;
+    }
     if (!item.nav) return;
-    // tabs del TabNavigator
     const TABS = ['Home', 'Search', 'Calendar', 'Chats', 'Profile'];
     if (TABS.includes(item.nav)) {
       navigation.navigate(item.nav);
@@ -91,6 +104,7 @@ export default function HomeAuthenticatedScreen({ navigation }) {
     }
   };
 
+  
   // ── Notification helpers ─────────────────────
   const openNotif = () => {
     setNotifOpen(true);
