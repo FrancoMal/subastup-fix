@@ -4,7 +4,7 @@ import { BASE_URL } from '../constants/api';
 
 const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 10000,
+  timeout: 60000,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -18,7 +18,7 @@ api.interceptors.request.use(
 );
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => response.data,  // ← antes era: (response) => response
   async (error) => {
     if (error.response?.status === 401) {
       await AsyncStorage.removeItem('token');

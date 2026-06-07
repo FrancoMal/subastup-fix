@@ -41,7 +41,7 @@ export default function VerifyCodeScreen({ navigation, route }) {
       const response = await api.post(ENDPOINTS.VERIFY_CODE, { email, code: codigo });
       setLoading(false);
       // El backend devuelve { ok: true, message, resetToken }
-      navigation.navigate('ResetPassword', { resetToken: response.data.resetToken });
+      navigation.navigate('ResetPassword', { resetToken: response.resetToken });
     } catch (err) {
       setLoading(false);
       const msg = err.response?.data?.message || 'El código ingresado no es válido. Revisá tu mail e intentá de nuevo.';

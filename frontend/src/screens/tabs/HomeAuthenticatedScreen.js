@@ -10,12 +10,11 @@ import {
   Dimensions,
   TouchableWithoutFeedback,
   Switch,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import useAuthStore from '../../store/authStore';
-
-const logout = useAuthStore((state) => state.logout);
 
 const LOGO             = require('../../assets/images/texto_appbar.jpeg');
 const IMG_PLACEHOLDER1 = require('../../assets/images/imagen_menu1.jpeg');
@@ -52,6 +51,8 @@ const NOTIFICATIONS = [];
 
 export default function HomeAuthenticatedScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const [activeTab, setActiveTab] = useState(0);
+  const logout = useAuthStore((state) => state.logout);
 
   // ── Hamburger menu state ─────────────────────
   const [menuOpen, setMenuOpen] = useState(false);

@@ -1,10 +1,12 @@
 # ── Dependencias ──────────────────────────────────────────────
 node_modules/
+pnpm-debug.log*
 
 # ── Variables de entorno (NUNCA subir al repo) ────────────────
 .env
 .env.local
 .env.*.local
+frontend/.env
 backend/.env
 
 # ── Expo / Metro ──────────────────────────────────────────────
@@ -32,6 +34,15 @@ expo-env.d.ts
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+
+# ── IDEs y Editores ───────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
 # ── TypeScript ────────────────────────────────────────────────
 *.tsbuildinfo

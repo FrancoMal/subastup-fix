@@ -21,7 +21,7 @@ const useAuthStore = create((set) => ({
   login: async (email, password) => {
     set({ isLoading: true, error: null });
     try {
-      const { data } = await api.post(ENDPOINTS.LOGIN, { email, password });
+      const data = await api.post(ENDPOINTS.LOGIN, { email, password });
       // El backend devuelve { ok, token, usuario: { nombre, documento, email, registroId } }
       const userData = { id: data.usuario.registroId, name: data.usuario.nombre };
       await AsyncStorage.setItem('token', data.token);
@@ -40,7 +40,7 @@ const useAuthStore = create((set) => ({
     try {
       // El backend devuelve { ok, message, registroId } — sin token.
       // La cuenta queda pendiente de aprobación por un administrador.
-      const { data } = await api.post(ENDPOINTS.REGISTER, userData);
+      const data = await api.post(ENDPOINTS.REGISTER, userData);
       set({ isLoading: false });
       return data;
     } catch (err) {
@@ -51,13 +51,15 @@ const useAuthStore = create((set) => ({
   },
 
   logout: async () => {
-    try { await api.post(ENDPOINTS.LOGOUT); } catch {}
     await AsyncStorage.removeItem('token');
     await AsyncStorage.removeItem('user');
     set({ user: null, token: null, isLoggedIn: false });
   },
 
-  clearError: () => set({ error: null }),
+  clearError:    () => set({ error: null }),
+  setUser:       (user)      => set({ user, isLoggedIn: true }),
+  setIsLoading:  (isLoading) => set({ isLoading }),
+  setError:      (error)     => set({ error }),
 }));
 
 export default useAuthStore;

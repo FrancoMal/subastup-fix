@@ -17,6 +17,7 @@ export default function AuthNavigator() {
     }}>
       <Stack.Screen name="Login"          component={LoginScreen} />
       <Stack.Screen name="Register"       component={RegisterScreen} />
+      <Stack.Screen name="RegisterStep2"  component={RegisterScreen2} />
       <Stack.Screen name="VerifyCode"     component={VerifyCodeScreen} />
       <Stack.Screen name="ResetPassword"  component={ResetPasswordScreen} />
     </Stack.Navigator>

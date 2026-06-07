@@ -1,7 +1,7 @@
 // ── URL base del backend ──────────────────────────────────────────────────────
 // Android emulador:   'http://10.0.2.2:3000'
 // Dispositivo físico: IP de la PC en la red WiFi local (ej: 'http://192.168.1.X:3000')
-export const BASE_URL = 'http://192.168.1.100:3000';
+export const BASE_URL = 'https://tpo-dai-subastup.onrender.com';
 
 export const ENDPOINTS = {
   // ── Auth (prefijo /api/auth montado en backend/server.js) ──────────────────

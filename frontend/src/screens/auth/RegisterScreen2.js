@@ -16,7 +16,6 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { useForm, Controller } from 'react-hook-form';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
 
 import { COLORS, SPACING, RADIUS, FONTS } from '../../constants/colors';
 import useRegisterStore from '../../store/registerStore';
@@ -68,16 +67,8 @@ export default function RegisterScreen2({ navigation, route }) {
     try {
       setStep2Data(data);
 
-      // Convertir fotos a Base64
-      const toBase64 = async (uri) => {
-        if (!uri) return null;
-        return await FileSystem.readAsStringAsync(uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-      };
-
-      const foto1Base64 = await toBase64(fotos.foto1);
-      const foto2Base64 = await toBase64(fotos.foto2);
+      const foto1Base64 = fotos.foto1?.base64 || null;
+      const foto2Base64 = fotos.foto2?.base64 || null;
 
       // Armar payload con todos los campos
       const payload = {
@@ -113,11 +104,15 @@ export default function RegisterScreen2({ navigation, route }) {
       mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [4, 3],
-      quality: 0.7,
+      quality: 0.5,
+      base64: true,
     });
 
     if (!result.canceled && result.assets[0]) {
-      setFotos({ ...fotos, [fotoKey]: result.assets[0].uri });
+      setFotos({ ...fotos, [fotoKey]: {
+        uri: result.assets[0].uri,
+        base64: result.assets[0].base64,
+      }});
     }
   };
 
@@ -191,22 +186,39 @@ export default function RegisterScreen2({ navigation, route }) {
         {/* Cargar fotos */}
         <Text style={styles.label}>Cargar fotos</Text>
         <View style={styles.fotosContainer}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.fotoBox}
-            onPress={() => handleFotoPress('foto1')}
+            onPress={() => !fotos.foto1?.uri && handleFotoPress('foto1')}
           >
-            {fotos.foto1 ? (
-              <Image source={{ uri: fotos.foto1 }} style={styles.fotoImage} />
+            {fotos.foto1?.uri ? (
+              <>
+                <Image source={{ uri: fotos.foto1?.uri }} style={styles.fotoImage} />
+                <TouchableOpacity
+                  style={styles.fotoDeleteBtn}
+                  onPress={() => setFotos({ ...fotos, foto1: null })}
+                >
+                  <Text style={styles.fotoDeleteText}>✕</Text>
+                </TouchableOpacity>
+              </>
             ) : (
               <Text style={styles.fotoPlaceholder}>+</Text>
             )}
           </TouchableOpacity>
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.fotoBox}
-            onPress={() => handleFotoPress('foto2')}
+            onPress={() => !fotos.foto2?.uri && handleFotoPress('foto2')}
           >
-            {fotos.foto2 ? (
-              <Image source={{ uri: fotos.foto2 }} style={styles.fotoImage} />
+            {fotos.foto2?.uri ? (
+              <>
+                <Image source={{ uri: fotos.foto2?.uri }} style={styles.fotoImage} />
+                <TouchableOpacity
+                  style={styles.fotoDeleteBtn}
+                  onPress={() => setFotos({ ...fotos, foto2: null })}
+                >
+                  <Text style={styles.fotoDeleteText}>✕</Text>
+                </TouchableOpacity>
+              </>
             ) : (
               <Text style={styles.fotoPlaceholder}>+</Text>
             )}
@@ -493,6 +505,14 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: '700',
   },
+  fotoDeleteBtn: {
+    position: 'absolute', top: 4, right: 4,
+    backgroundColor: '#8b0000', borderRadius: 10,
+    width: 22, height: 22,
+    justifyContent: 'center', alignItems: 'center',
+    zIndex: 10,
+  },
+  fotoDeleteText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
 
   // Inputs row
   rowContainer: {

@@ -16,8 +16,6 @@ import useAuthStore from '../../store/authStore';
 
 const USER_AVATAR = require('../../assets/images/avatar.jpeg'); // reemplazá con tu ruta
 
-const logout = useAuthStore((state) => state.logout);
-
 // ─────────────────────────────────────────────
 //  Tarjeta de acción simple (con flecha)
 // ─────────────────────────────────────────────
@@ -129,6 +127,7 @@ function GroupDivider() {
 // ─────────────────────────────────────────────
 export default function ConfiguracionScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const logout = useAuthStore((state) => state.logout);
   const [darkTheme,      setDarkTheme]      = useState(true);
   const [notifEnabled,   setNotifEnabled]   = useState(true);
 
