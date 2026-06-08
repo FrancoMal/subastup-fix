@@ -20,9 +20,11 @@ export default function VerifyCodeScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const email  = route?.params?.email ?? '';
 
-  const [codigo,   setCodigo]   = useState('');
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState('');
+  const [codigo,    setCodigo]   = useState('');
+  const [loading,   setLoading]  = useState(false);
+  const [error,     setError]    = useState('');
+  const [reenviando, setReenviando] = useState(false);
+  const [reenviado,  setReenviado]  = useState(false);
 
   const handleValidar = async () => {
     if (!codigo.trim()) {
@@ -47,6 +49,16 @@ export default function VerifyCodeScreen({ navigation, route }) {
       const msg = err.response?.data?.message || 'El código ingresado no es válido. Revisá tu mail e intentá de nuevo.';
       setError(msg);
     }
+  };
+
+  const handleReenviar = async () => {
+    setReenviando(true);
+    try {
+      await api.post(ENDPOINTS.FORGOT_PASSWORD, { email });
+      setReenviado(true);
+      setTimeout(() => setReenviado(false), 30000);
+    } catch {}
+    finally { setReenviando(false); }
   };
 
   return (
@@ -96,6 +108,16 @@ export default function VerifyCodeScreen({ navigation, route }) {
           ? <ActivityIndicator color="#FFFFFF" />
           : <Text style={styles.btnValidarText}>Validar</Text>
         }
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={handleReenviar}
+        disabled={reenviando || reenviado}
+        style={{ marginTop: 16, alignItems: 'center' }}
+      >
+        <Text style={{ color: reenviado ? '#888888' : '#8b0000', fontSize: 13, fontWeight: '600' }}>
+          {reenviando ? 'Enviando...' : reenviado ? 'Código reenviado ✓' : 'Reenviar código'}
+        </Text>
       </TouchableOpacity>
 
       {/* ── Spacer ── */}

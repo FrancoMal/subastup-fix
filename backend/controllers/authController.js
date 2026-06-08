@@ -230,6 +230,14 @@ exports.forgotPassword = async (req, res) => {
     if (!registro)
       return res.json({ ok: true, message: 'Si el mail existe, recibirás el código.' });
 
+    if (registro.tokenVerif) {
+      const parts = registro.tokenVerif.split(':');
+      if (parts[0] === 'RESET' && Date.now() - parseInt(parts[2]) < codeExpiryMs()) {
+        await enviarResetPassword(registro.email, parts[1]);
+        return res.json({ ok: true, message: 'Si el mail existe, recibirás el código.' });
+      }
+    }
+
     const codigo    = generateCode();
     const timestamp = Date.now();
     const tokenVerif = `RESET:${codigo}:${timestamp}`;
