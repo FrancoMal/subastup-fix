@@ -1,0 +1,588 @@
+import * as ImagePicker   from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  TextInput,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  Animated,
+  TouchableWithoutFeedback,
+  Alert,
+  Image,
+  ActivityIndicator,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import useSocket from '../../hooks/useSocket';
+import api from '../../services/api';
+import { ENDPOINTS } from '../../constants/api';
+
+// ─────────────────────────────────────────────
+//  Datos mock — fallback
+// ─────────────────────────────────────────────
+const MOCK_MESSAGES = [
+  { id: '1',  contenido: 'Hola, ¿sigue disponible el artículo?',    remitente: 'soporte', fechaEnvio: '2026-06-10T10:10:00Z' },
+  { id: '2',  contenido: 'Sí, está disponible hasta el viernes.',   remitente: 'usuario', fechaEnvio: '2026-06-10T10:11:00Z' },
+];
+
+// ─────────────────────────────────────────────
+//  Burbuja de mensaje
+// ─────────────────────────────────────────────
+function MessageBubble({ message }) {
+  const isMine = message.remitente === 'usuario' || message.isMine;
+  const text = message.contenido || message.text || '';
+  
+  let timeStr = message.time || '';
+  if (message.fechaEnvio) {
+    const d = new Date(message.fechaEnvio);
+    if (!isNaN(d.getTime())) {
+      timeStr = d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+    }
+  }
+
+  const { type, imageUri, fileName } = message;
+
+  return (
+    <View style={[styles.bubbleRow, isMine && styles.bubbleRowMine]}>
+      <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleOther]}>
+        {type === 'image' && imageUri ? (
+          <Image source={{ uri: imageUri }} style={styles.attachmentImage} resizeMode="cover" />
+        ) : null}
+
+        {type === 'file' ? (
+          <View style={styles.fileChip}>
+            <Ionicons name="document-outline" size={16} color={isMine ? '#FFF' : '#8b0000'} />
+            <Text style={[styles.fileName, isMine && styles.fileNameMine]} numberOfLines={2}>
+              {fileName || text}
+            </Text>
+          </View>
+        ) : null}
+
+        {(type === 'text' || !type) && !!text ? (
+          <Text style={[styles.bubbleText, isMine && styles.bubbleTextMine]}>
+            {text}
+          </Text>
+        ) : null}
+
+        <Text style={[styles.bubbleTime, isMine && styles.bubbleTimeMine]}>
+          {timeStr}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+// ─────────────────────────────────────────────
+//  Menú contextual del botón +
+// ─────────────────────────────────────────────
+function AttachMenu({ visible, onClose, onArchivos, onCamara }) {
+  const anim    = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(anim,    { toValue: 1, useNativeDriver: true, bounciness: 4, speed: 18 }),
+        Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(anim,    { toValue: 0, duration: 150, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [visible]);
+
+  if (!visible) return null;
+
+  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] });
+  const scale      = anim.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] });
+
+  return (
+    <TouchableWithoutFeedback onPress={onClose}>
+      <View style={StyleSheet.absoluteFill}>
+        <Animated.View
+          style={[
+            styles.attachMenu,
+            { opacity, transform: [{ translateY }, { scale }] },
+          ]}
+        >
+          <TouchableOpacity style={styles.attachItem} onPress={onArchivos} activeOpacity={0.7}>
+            <Ionicons name="folder-outline" size={22} color="#1A1A1A" />
+            <Text style={styles.attachLabel}>Archivos</Text>
+          </TouchableOpacity>
+
+          <View style={styles.attachDivider} />
+
+          <TouchableOpacity style={styles.attachItem} onPress={onCamara} activeOpacity={0.7}>
+            <Ionicons name="camera-outline" size={22} color="#1A1A1A" />
+            <Text style={styles.attachLabel}>Abrir camara</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </TouchableWithoutFeedback>
+  );
+}
+
+// ─────────────────────────────────────────────
+//  Pantalla principal
+// ─────────────────────────────────────────────
+export default function ChatDetailScreen({ route, navigation }) {
+  const insets = useSafeAreaInsets();
+  const { chatId, chatName = 'Soporte', estadoProducto = 'Activo' } = route?.params ?? {};
+
+  const [messages,    setMessages]    = useState([]);
+  const [inputText,   setInputText]   = useState('');
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [loading,     setLoading]     = useState(true);
+  const listRef = useRef(null);
+
+  const socketRef = useSocket();
+
+  // ── 1. Cargar historial ────────────────────────
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        setLoading(true);
+        if (!chatId) return;
+        const data = await api.get(ENDPOINTS.MESSAGES(chatId));
+        setMessages(data || []);
+      } catch (error) {
+        console.log('Error fetching messages, usando mock:', error);
+        setMessages(MOCK_MESSAGES);
+      } finally {
+        setLoading(false);
+        setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 150);
+      }
+    };
+    fetchHistory();
+  }, [chatId]);
+
+  // ── 2. Socket Listeners ────────────────────────
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket || !chatId) return;
+
+    socket.emit('join_chat', { chatId });
+
+    const handleNuevoMensaje = (nuevoMsj) => {
+      setMessages(prev => [...prev, nuevoMsj]);
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
+    };
+
+    socket.on('nuevo_mensaje', handleNuevoMensaje);
+
+    return () => {
+      socket.off('nuevo_mensaje', handleNuevoMensaje);
+    };
+  }, [socketRef.current, chatId]);
+
+  const appendMessage = (message) => {
+    setMessages(prev => [...prev, message]);
+    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
+  };
+
+  // ── Enviar mensaje texto ───────────────────────
+  const handleSend = () => {
+    const text = inputText.trim();
+    if (!text || !chatId) return;
+
+    const newMsg = {
+      id:     String(Date.now()),
+      contenido: text,
+      remitente: 'usuario',
+      fechaEnvio: new Date().toISOString(),
+    };
+    
+    // Add locally for instant UI
+    appendMessage(newMsg);
+    setInputText('');
+
+    // Emit event
+    if (socketRef.current) {
+      socketRef.current.emit('enviar_mensaje', { chatId, contenido: text });
+    }
+  };
+
+  const handleCamara = async () => {
+    setMenuVisible(false);
+
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permiso requerido', 'Necesitamos acceso a tu cámara.');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets?.length > 0) {
+        const asset = result.assets[0];
+        const uri = asset?.uri;
+
+        if (uri) {
+          appendMessage({
+            id: String(Date.now()),
+            text: 'Foto enviada',
+            type: 'image',
+            imageUri: uri,
+            remitente: 'usuario',
+            fechaEnvio: new Date().toISOString(),
+          });
+        }
+      }
+    } catch (error) {
+      console.log('Error al abrir cámara:', error);
+      Alert.alert('Error', 'No se pudo abrir la cámara. Intenta nuevamente.');
+    }
+  };
+
+  const handleArchivos = async () => {
+    setMenuVisible(false);
+
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['*/*'],
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets?.length > 0) {
+        const file = result.assets[0];
+
+        appendMessage({
+          id: String(Date.now()),
+          text: file.name || 'Archivo enviado',
+          type: 'file',
+          fileName: file.name,
+          remitente: 'usuario',
+          fechaEnvio: new Date().toISOString(),
+        });
+      }
+    } catch (error) {
+      console.log('Error al abrir archivo:', error);
+      Alert.alert('Error', 'No se pudo abrir el selector de archivos.');
+    }
+  };
+
+  // ─────────────────────────────────────────────
+  //  RENDER
+  // ─────────────────────────────────────────────
+  return (
+    <KeyboardAvoidingView
+      style={[styles.container, { paddingTop: insets.top }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={0}
+    >
+      {/* ── Top Bar ─────────────────────────────── */}
+      <View style={styles.topBar}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <Ionicons name="chevron-back" size={26} color="#1A1A1A" />
+        </TouchableOpacity>
+        <Text style={styles.topBarTitle} numberOfLines={1}>{chatName}</Text>
+        <View style={{ width: 34 }} />
+      </View>
+
+      {/* ── Banner Producto ─────────────────────── */}
+      <View style={styles.banner}>
+        <Ionicons name="information-circle" size={20} color="#8b0000" />
+        <View style={styles.bannerTexts}>
+          <Text style={styles.bannerTitle} numberOfLines={1}>{chatName}</Text>
+          <Text style={styles.bannerStatus}>Estado: {estadoProducto}</Text>
+        </View>
+      </View>
+
+      {/* ── Mensajes ────────────────────────────── */}
+      {loading ? (
+        <View style={styles.centerWrap}>
+          <ActivityIndicator size="large" color="#8b0000" />
+        </View>
+      ) : (
+        <FlatList
+          ref={listRef}
+          data={messages}
+          keyExtractor={item => String(item.id)}
+          renderItem={({ item }) => <MessageBubble message={item} />}
+          contentContainerStyle={styles.messagesList}
+          showsVerticalScrollIndicator={false}
+          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
+        />
+      )}
+
+      {/* ── Input bar ───────────────────────────── */}
+      <View style={[styles.inputBar, { paddingBottom: insets.bottom + 8 }]}>
+        {/* Botón + */}
+        <TouchableOpacity
+          style={styles.plusBtn}
+          onPress={() => setMenuVisible(v => !v)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="add" size={24} color="#8b0000" />
+        </TouchableOpacity>
+
+        {/* Campo de texto */}
+        <TextInput
+          style={styles.input}
+          placeholder="Mensaje"
+          placeholderTextColor="#A09088"
+          value={inputText}
+          onChangeText={setInputText}
+          multiline
+          maxLength={500}
+          onSubmitEditing={handleSend}
+          returnKeyType="send"
+        />
+
+        {/* Botón enviar */}
+        <TouchableOpacity
+          style={[styles.sendBtn, inputText.trim() && styles.sendBtnActive]}
+          onPress={handleSend}
+          activeOpacity={0.8}
+          disabled={!inputText.trim()}
+        >
+          <Ionicons
+            name="send"
+            size={20}
+            color={inputText.trim() ? '#8b0000' : '#C0B0A8'}
+          />
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Menú adjuntar ───────────────────────── */}
+      <AttachMenu
+        visible={menuVisible}
+        onClose={() => setMenuVisible(false)}
+        onArchivos={() => {
+          setMenuVisible(false);
+          handleArchivos();
+        }}
+        onCamara={() => {
+          setMenuVisible(false);
+          handleCamara();
+        }}
+      />
+
+    </KeyboardAvoidingView>
+  );
+}
+
+// ─────────────────────────────────────────────
+//  Estilos
+// ─────────────────────────────────────────────
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
+
+  // Top bar
+  topBar: {
+    height: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0E8E0',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+  },
+  backBtn:      { padding: 4 },
+  topBarTitle:  { flex: 1, fontSize: 17, fontWeight: '700', color: '#1A1A1A', textAlign: 'center' },
+
+  // Banner Producto
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF5EC',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0D8C8',
+  },
+  bannerTexts: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  bannerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1A1A1A',
+  },
+  bannerStatus: {
+    fontSize: 12,
+    color: '#8b0000',
+    fontWeight: '500',
+    marginTop: 2,
+    textTransform: 'capitalize',
+  },
+
+  // Loader
+  centerWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+
+  // Lista de mensajes
+  messagesList: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+    gap: 6,
+  },
+
+  // Burbujas
+  bubbleRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    marginVertical: 2,
+  },
+  bubbleRowMine: {
+    justifyContent: 'flex-end',
+  },
+  bubble: {
+    maxWidth: '75%',
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  bubbleOther: {
+    backgroundColor: '#F0F0F0',
+    borderBottomLeftRadius: 4,
+  },
+  bubbleMine: {
+    backgroundColor: '#8b0000',
+    borderBottomRightRadius: 4,
+  },
+  bubbleText: {
+    fontSize: 15,
+    color: '#1A1A1A',
+    lineHeight: 21,
+  },
+  attachmentImage: {
+    width: 220,
+    height: 160,
+    borderRadius: 14,
+    marginBottom: 8,
+    backgroundColor: '#EEE',
+  },
+  fileChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 6,
+    maxWidth: 220,
+  },
+  fileName: {
+    fontSize: 13,
+    color: '#1A1A1A',
+    flexShrink: 1,
+  },
+  fileNameMine: {
+    color: '#FFF',
+  },
+  bubbleTextMine: {
+    color: '#FFFFFF',
+  },
+  bubbleTime: {
+    fontSize: 10,
+    color: '#A09088',
+    marginTop: 4,
+    alignSelf: 'flex-end',
+  },
+  bubbleTimeMine: {
+    color: 'rgba(255,255,255,0.65)',
+  },
+
+  // Input bar
+  inputBar: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#F0E8E0',
+    gap: 8,
+  },
+  plusBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFF5EC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#F0D8C8',
+    marginBottom: 1,
+  },
+  input: {
+    flex: 1,
+    minHeight: 40,
+    maxHeight: 100,
+    backgroundColor: '#F5F0ED',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: '#1A1A1A',
+    borderWidth: 1,
+    borderColor: '#EDE0D8',
+  },
+  sendBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F5F0ED',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 1,
+  },
+  sendBtnActive: {
+    backgroundColor: '#FFE8D6',
+  },
+
+  // Menú adjuntar
+  attachMenu: {
+    position: 'absolute',
+    bottom: 70,
+    left: 16,
+    backgroundColor: '#FFF5EC',
+    borderRadius: 14,
+    overflow: 'hidden',
+    width: 190,
+    elevation: 12,
+    shadowColor: '#8b0000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F0D8C8',
+  },
+  attachItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 15,
+    gap: 14,
+  },
+  attachLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#1A1A1A',
+  },
+  attachDivider: {
+    height: 1,
+    backgroundColor: '#F0D8C8',
+    marginHorizontal: 12,
+  },
+});

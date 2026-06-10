@@ -17,8 +17,11 @@ import MiCuentaScreen       from '../screens/profile/MiCuentaScreen';
 import CargarProductoScreen from '../screens/auction/CargarProductoScreen';
 import AuctionListAuthScreen    from '../screens/auction/AuctionListAuthScreen';
 import AuctionDetailAuthScreen  from '../screens/auction/AuctionDetailAuthScreen';
+import ChatsScreen             from '../screens/chat/ChatsScreen';
+import ChatDetailScreen        from '../screens/chat/ChatDetailScreen';
 
 const Stack = createNativeStackNavigator();
+
 
 export default function AppNavigator() {
   const { isLoggedIn, init } = useAuthStore();
@@ -61,6 +64,10 @@ export default function AppNavigator() {
             <Stack.Screen name="MiCuenta"         component={MiCuentaScreen} />
             <Stack.Screen name="CargarProducto"   component={CargarProductoScreen} />
             <Stack.Screen name="PujarAuth"        component={AuctionListAuthScreen} />
+            <Stack.Screen name="AuctionDetailAuth"  component={AuctionDetailAuthScreen} />
+            <Stack.Screen name="Chats" component={ChatsScreen} />
+            <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
+
           </>
         )}
       </Stack.Navigator>
