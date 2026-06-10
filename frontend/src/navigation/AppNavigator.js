@@ -61,6 +61,7 @@ export default function AppNavigator() {
             <Stack.Screen name="MiCuenta"         component={MiCuentaScreen} />
             <Stack.Screen name="CargarProducto"   component={CargarProductoScreen} />
             <Stack.Screen name="PujarAuth"        component={AuctionListAuthScreen} />
+            <Stack.Screen name="AuctionDetailAuth"        component={AuctionDetailAuthScreen} />
           </>
         )}
       </Stack.Navigator>
