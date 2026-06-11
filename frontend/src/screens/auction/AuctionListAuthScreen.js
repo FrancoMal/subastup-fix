@@ -26,10 +26,10 @@ const CARD_HEIGHT  = CARD_WIDTH * 1.4;
 
 // ─── Barra de navegación inferior ────────────────────────────────────────────
 const BOTTOM_NAV_TABS = [
-  { name: 'Home',     label: 'Inicio',   icon: 'home-outline' },
-  { name: 'Search',   label: 'Mensajes', icon: 'mail-outline' },
-  { name: 'Publicar', label: 'Publicar', icon: 'add-circle-outline' },
-  { name: 'Chats',    label: 'Pujar',    icon: 'flag-outline' },
+  { name: 'Main',           label: 'Inicio',   icon: 'home-outline' },
+  { name: 'Mensajes',       label: 'Mensajes', icon: 'mail-outline' },
+  { name: 'CargarProducto', label: 'Publicar', icon: 'add-circle-outline' },
+  { name: 'PujarAuth',      label: 'Pujar',    icon: 'flag-outline' },
 ];
 
 // ─── Mismos datos que HomeAuthenticatedScreen ────────────────────────────────
@@ -135,13 +135,13 @@ export default function AuctionListAuthScreen({ navigation, route }) {
 
   // ── Bottom nav handler ───────────────────────
   const handleBottomNav = (tabName) => {
-    if (tabName === 'Home') {
-      navigation.navigate('Home');
-    } else if (tabName === 'Search') {
-      navigation.navigate('Search');
-    } else if (tabName === 'Publicar') {
-      navigation.navigate('Publicar');
-    } else if (tabName === 'Chats') {
+    if (tabName === 'Main') {
+      navigation.navigate('Main');
+    } else if (tabName === 'Mensajes') {
+      navigation.navigate('Mensajes');
+    } else if (tabName === 'CargarProducto') {
+      navigation.navigate('CargarProducto');
+    } else if (tabName === 'PujarAuth') {
       // Ya estamos en la pantalla de pujar, no hacemos nada
     }
   };
@@ -239,8 +239,8 @@ export default function AuctionListAuthScreen({ navigation, route }) {
       ══════════════════════════════════════════ */}
       <View style={[styles.bottomNav, { paddingBottom: insets.bottom + 8 }]}>
         {BOTTOM_NAV_TABS.map((tab, i) => {
-          // "Pujar" (Chats) está activo porque estamos en esta pantalla
-          const isActive = tab.name === 'Chats';
+          // "Pujar" (PujarAuth) está activo porque estamos en esta pantalla
+          const isActive = tab.name === 'PujarAuth';
           return (
             <TouchableOpacity
               key={i}
