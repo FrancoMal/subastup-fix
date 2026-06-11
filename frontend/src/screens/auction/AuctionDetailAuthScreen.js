@@ -31,9 +31,9 @@ const DRAWER_WIDTH = SCREEN_WIDTH * 0.78;
 // ─── Bottom nav ───────────────────────────────────────────────────────────────
 const BOTTOM_NAV_TABS = [
   { name: 'Main',     label: 'Inicio',   icon: 'home-outline' },
-  { name: 'Search',   label: 'Mensajes', icon: 'mail-outline' },
+  { name: 'Mensajes',   label: 'Mensajes', icon: 'mail-outline' },
   { name: 'CargarProducto', label: 'Publicar', icon: 'add-circle-outline' },
-  { name: 'Chats',    label: 'Pujar',    icon: 'flag-outline' },
+  { name: 'PujarAuth',    label: 'Pujar',    icon: 'flag-outline' },
 ];
 
 // ─── Drawer ───────────────────────────────────────────────────────────────────
@@ -225,6 +225,10 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
     setActiveSlide(slide);
   };
 
+  // ── Scroll automático al abrir teclado ───────
+  const scrollRef = useRef(null);
+  const pujaOffsetY = useRef(0); // posición Y del pujaBloque dentro del ScrollView
+
   // ── Modales ──────────────────────────────────
   const [modalEnlace,       setModalEnlace]       = useState(false);
   const [modalInfo,         setModalInfo]         = useState(false);
@@ -234,10 +238,24 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
   const [tecladoVisible, setTecladoVisible] = useState(false);
   const [montoPuja,      setMontoPuja]      = useState('');
 
+  // ── Método de pago ────────────────────────────
+  // TODO BACKEND: eliminar DEV_TIENE_METODO_PAGO y reemplazar tieneMétodoPago por:
+  //   const { data } = await api.get(ENDPOINTS.PAYMENT_METHODS)
+  //   const tieneMetodoPago = data.length > 0
+  // ⚠️  Para testear SIN backend: cambiar DEV_TIENE_METODO_PAGO a false → aparece el modal
+  const DEV_TIENE_METODO_PAGO = true; // TODO BACKEND: borrar esta línea
+  const [modalSinMetodoPago, setModalSinMetodoPago] = useState(false);
+
   const handleTecla = (tecla) => {
     if (tecla === '←') {
       setMontoPuja((prev) => prev.slice(0, -1));
     } else if (tecla === 'Pujar') {
+      // TODO BACKEND: reemplazar DEV_TIENE_METODO_PAGO por llamada real a la API
+      if (!DEV_TIENE_METODO_PAGO) {
+        setTecladoVisible(false);
+        setModalSinMetodoPago(true);
+        return;
+      }
       const monto = Number(montoPuja.replace(',', '.'));
       if (!monto || monto <= ultimaPujaLocal) {
         // Monto inválido o menor/igual a la puja actual — no se permite
@@ -344,6 +362,7 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
 
       {/* ── Contenido scrolleable ─────────────────── */}
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 110 }]}
       >
@@ -418,7 +437,10 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
             {/* Bloque de puja: precio actual llamativo + campo de nueva puja */}
             {/* TODO BACKEND: ultimaPujaLocal debe actualizarse en tiempo real via WebSocket
                 evento 'nueva_puja': { monto, pujadorId } → setUltimaPujaLocal(monto) */}
-            <View style={styles.pujaBloque}>
+            <View
+              style={styles.pujaBloque}
+              onLayout={(e) => { pujaOffsetY.current = e.nativeEvent.layout.y; }}
+            >
               {/* Panel izquierdo: precio actual */}
               <View style={styles.precioActualPanel}>
                 <Text style={styles.precioActualLabel}>Puja actual</Text>
@@ -434,7 +456,18 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
               {/* Panel derecho: campo de nueva puja */}
               <TouchableOpacity
                 style={styles.nuevaPujaPanel}
-                onPress={() => setTecladoVisible(true)}
+                onPress={() => {
+                  // TODO BACKEND: reemplazar DEV_TIENE_METODO_PAGO por llamada real a la API
+                  if (!DEV_TIENE_METODO_PAGO) {
+                    setModalSinMetodoPago(true);
+                    return;
+                  }
+                  setTecladoVisible(true);
+                  // Scroll hasta el pujaBloque para que el teclado no lo tape
+                  setTimeout(() => {
+                    scrollRef.current?.scrollTo({ y: pujaOffsetY.current - 20, animated: true });
+                  }, 50);
+                }}
                 activeOpacity={0.75}
               >
                 <Text style={styles.nuevaPujaLabel}>Tu puja</Text>
@@ -491,6 +524,19 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
             <TouchableWithoutFeedback>
               <View style={styles.teclado}>
 
+                {/* ── Banner puja actual (visible solo con teclado abierto) ── */}
+                <View style={styles.tecladoPujaActualBanner}>
+                  <View style={styles.tecladoPujaActualLeft}>
+                    <Text style={styles.tecladoPujaActualLabel}>PUJA ACTUAL</Text>
+                    <Text style={styles.tecladoPujaActualMonto}>
+                      {producto.moneda}{'  '}
+                      <Text style={styles.tecladoPujaActualMontoValor}>
+                        {ultimaPujaLocal.toLocaleString('es-AR')}
+                      </Text>
+                    </Text>
+                  </View>
+                </View>
+
                 {/* ── Display de monto ── */}
                 <View style={styles.tecladoDisplay}>
                   <Text style={styles.tecladoDisplayText}>
@@ -534,6 +580,56 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
           </View>
         </TouchableWithoutFeedback>
       )}
+
+      {/* ══════════════════════════════════════════════
+          MODAL SIN MÉTODO DE PAGO
+          TODO BACKEND: este modal se dispara cuando la API confirma que el usuario
+          no tiene métodos de pago registrados. Borrar DEV_TIENE_METODO_PAGO y
+          reemplazar por: const tieneMetodoPago = (await api.get(ENDPOINTS.PAYMENT_METHODS)).data.length > 0
+      ══════════════════════════════════════════════ */}
+      <Modal visible={modalSinMetodoPago} transparent animationType="fade" onRequestClose={() => setModalSinMetodoPago(false)}>
+        <TouchableWithoutFeedback onPress={() => setModalSinMetodoPago(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.modalCard, styles.modalSinPagoCard]}>
+                <TouchableOpacity style={styles.modalCloseX} onPress={() => setModalSinMetodoPago(false)}>
+                  <Ionicons name="close" size={22} color="#1A1A1A" />
+                </TouchableOpacity>
+
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalHeaderText}>Método de pago requerido</Text>
+                </View>
+
+                <View style={styles.modalBody}>
+                  <View style={styles.sinPagoIconCircle}>
+                    <Ionicons name="card-outline" size={44} color="#8b0000" />
+                  </View>
+                  <Text style={styles.sinPagoTitulo}>
+                    Necesitás un método de pago registrado para poder pujar.
+                  </Text>
+                  <Text style={styles.sinPagoSubtitulo}>
+                    Agregá una tarjeta o medio de pago para participar en subastas.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.sinPagoBtn}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      setModalSinMetodoPago(false);
+                      // TODO BACKEND: la pantalla MetodosDePago aún no existe.
+                      // Cuando se cree, registrarla en AppNavigator con:
+                      //   <Stack.Screen name="MetodosDePago" component={MetodosDePagoScreen} />
+                      navigation.navigate('MetodosDePago');
+                    }}
+                  >
+                    <Ionicons name="card-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                    <Text style={styles.sinPagoBtnText}>Métodos de pago</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
 
       {/* ══════════════════════════════════════════════
           MODAL ENLACE
@@ -1328,4 +1424,85 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   finAceptarText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+
+  // ── Banner puja actual sobre teclado ──────────
+  tecladoPujaActualBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF5EC',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#E8D5C8',
+  },
+  tecladoPujaActualLeft: { flex: 1 },
+  tecladoPujaActualLabel: {
+    fontSize: 10,
+    color: '#9E9E9E',
+    fontWeight: '700',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  tecladoPujaActualMonto: {
+    fontSize: 13,
+    color: '#555',
+    fontWeight: '600',
+  },
+  tecladoPujaActualMontoValor: {
+    fontSize: 20,
+    color: '#8b0000',
+    fontWeight: '800',
+  },
+  tecladoPujaActualRight: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FDE8E8',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // ── Modal sin método de pago ──────────────────
+  modalSinPagoCard: {},
+  sinPagoIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#FDE8E8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginBottom: 16,
+    marginTop: 4,
+  },
+  sinPagoTitulo: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    textAlign: 'center',
+    marginBottom: 8,
+    lineHeight: 22,
+  },
+  sinPagoSubtitulo: {
+    fontSize: 13,
+    color: '#777',
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 20,
+  },
+  sinPagoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#8b0000',
+    paddingVertical: 13,
+    borderRadius: 10,
+    elevation: 3,
+  },
+  sinPagoBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
 });
