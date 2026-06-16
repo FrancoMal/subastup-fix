@@ -45,6 +45,14 @@ export default function MetodosDePagoScreen({ navigation }) {
     }
   };
 
+    // ── Render cuando no hay elementos ─────────────
+  const renderEfectoVacio = () => (
+    <View style={styles.vacioContainer}>
+      <Ionicons name="card-outline" size={48} color="#C0A898" style={{ marginBottom: 12 }} />
+      <Text style={styles.vacioTexto}>No tenés métodos de pago registrados.</Text>
+    </View>
+  );
+
   // ── Render fila de método de pago ─────────────
   const renderMetodo = ({ item }) => (
     <TouchableOpacity
@@ -83,6 +91,7 @@ export default function MetodosDePagoScreen({ navigation }) {
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         ItemSeparatorComponent={() => <View style={styles.itemSeparator} />}
+        ListEmptyComponent={renderEfectoVacio}
       />
 
       {/* ── Botón Agregar ───────────────────────── */}
@@ -182,6 +191,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.18,
     shadowRadius: 5,
+    marginBottom: 5,
   },
   agregarBtnText: {
     color: '#FFFFFF',
@@ -222,5 +232,18 @@ const styles = StyleSheet.create({
   tabLabelActive: {
     color: '#8b0000',
     fontWeight: '700',
+  },
+  // Estilo para el estado vacío
+  vacioContainer: {
+    marginTop: 150,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  vacioTexto: {
+    fontSize: 15,
+    color: '#9E9E9E',
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });
