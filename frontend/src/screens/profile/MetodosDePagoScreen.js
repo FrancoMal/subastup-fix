@@ -58,10 +58,7 @@ export default function MetodosDePagoScreen({ navigation }) {
     <TouchableOpacity
       style={styles.metodoItem}
       activeOpacity={0.7}
-      onPress={() => {
-        // TODO BACKEND: navegar al detalle/edición del método de pago
-        // navigation.navigate('MetodoDePagoDetalle', { id: item.id })
-      }}
+      onPress={() => navigation.navigate('MetodoDePagoDetalle', { metodo: item })}
     >
       <Text style={styles.metodoNombre}>{item.nombre}</Text>
       <Ionicons name="chevron-forward" size={22} color="#1A1A1A" />
