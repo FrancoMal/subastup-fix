@@ -206,7 +206,7 @@ export default function ConfiguracionScreen({ navigation }) {
           icon="card-outline"
           label="Metodos de pago"
           sublabel="Tarjetas y cuentas vinculadas"
-          onPress={() => console.log('Metodos de pago')} // cambiar cuando este la pantalla de métodos de pago
+          onPress={() => navigation.navigate('AgregarMetodoPago')}
         />
         <ActionCard
           icon="hammer-outline"

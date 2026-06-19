@@ -19,6 +19,9 @@ import AuctionListAuthScreen    from '../screens/auction/AuctionListAuthScreen';
 import AuctionDetailAuthScreen  from '../screens/auction/AuctionDetailAuthScreen';
 import ChatsScreen             from '../screens/chat/ChatsScreen';
 import ChatDetailScreen        from '../screens/chat/ChatDetailScreen';
+import AgregarMetodoPagoScreen from '../screens/payments/AgregarMetodoPagoScreen';
+import MetodosDePagoScreen     from '../screens/payments/MetodosDePagoScreen';
+import MetodoDePagoDetalleScreen from '../screens/payments/MetodoDePagoDetalleScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -67,6 +70,9 @@ export default function AppNavigator() {
             <Stack.Screen name="AuctionDetailAuth"  component={AuctionDetailAuthScreen} />
             <Stack.Screen name="Chats" component={ChatsScreen} />
             <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
+            <Stack.Screen name="AgregarMetodoPago" component={AgregarMetodoPagoScreen} />
+            <Stack.Screen name="MetodosDePago" component={MetodosDePagoScreen} />
+            <Stack.Screen name="MetodoDePagoDetalle" component={MetodoDePagoDetalleScreen} />
 
           </>
         )}
