@@ -17,8 +17,6 @@ import MiCuentaScreen       from '../screens/profile/MiCuentaScreen';
 import CargarProductoScreen from '../screens/auction/CargarProductoScreen';
 import AuctionListAuthScreen    from '../screens/auction/AuctionListAuthScreen';
 import AuctionDetailAuthScreen  from '../screens/auction/AuctionDetailAuthScreen';
-import MetodosDePagoScreen       from '../screens/profile/MetodosDePagoScreen';
-import MetodoDePagoDetalleScreen from '../screens/profile/MetodoDePagoDetalleScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -64,8 +62,6 @@ export default function AppNavigator() {
             <Stack.Screen name="CargarProducto"   component={CargarProductoScreen} />
             <Stack.Screen name="PujarAuth"        component={AuctionListAuthScreen} />
             <Stack.Screen name="AuctionDetailAuth"        component={AuctionDetailAuthScreen} />
-            <Stack.Screen name="MetodosDePago"        component={MetodosDePagoScreen} />
-            <Stack.Screen name="MetodoDePagoDetalle" component={MetodoDePagoDetalleScreen} options={{ headerShown: false }} />
           </>
         )}
       </Stack.Navigator>
