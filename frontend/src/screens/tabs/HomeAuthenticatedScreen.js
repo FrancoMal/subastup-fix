@@ -26,7 +26,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = SCREEN_WIDTH * 0.78;
 
 const MENU_BUTTONS = [
-  { label: 'Metodos de Pago', icon: 'card-outline',               nav: null },
+  { label: 'Metodos de Pago', icon: 'card-outline',               nav: 'MetodosDePago' },
   { label: 'Informacion',     icon: 'information-circle-outline', nav: 'Informacion' },
   { label: 'Calendario',      icon: 'calendar-outline',           nav: 'Calendar' },
 ];
