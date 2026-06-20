@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import {
   Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 const LOGO        = require('../../assets/images/texto_appbar.jpeg');
@@ -29,10 +30,10 @@ const DRAWER_WIDTH = SCREEN_WIDTH * 0.78;
 
 // ─── Bottom nav ───────────────────────────────────────────────────────────────
 const BOTTOM_NAV_TABS = [
-  { name: 'Home',     label: 'Inicio',   icon: 'home-outline' },
-  { name: 'Search',   label: 'Mensajes', icon: 'mail-outline' },
-  { name: 'Publicar', label: 'Publicar', icon: 'add-circle-outline' },
-  { name: 'Chats',    label: 'Pujar',    icon: 'flag-outline' },
+  { name: 'Main',     label: 'Inicio',   icon: 'home-outline' },
+  { name: 'Mensajes',   label: 'Mensajes', icon: 'mail-outline' },
+  { name: 'CargarProducto', label: 'Publicar', icon: 'add-circle-outline' },
+  { name: 'PujarAuth',    label: 'Pujar',    icon: 'flag-outline' },
 ];
 
 // ─── Drawer ───────────────────────────────────────────────────────────────────
@@ -54,21 +55,40 @@ const DRAWER_GROUPS = [
 
 const NOTIFICATIONS = [];
 
-// ─── MOCK — reemplazar con api.get(ENDPOINTS.AUCTION_BY_ID(productId)) ────────
-// estado: 'proximamente' | 'vivo' | 'finalizado'
+// ─── MOCK — BACKEND INTEGRATION ──────────────────────────────────────────────
+// TODO BACKEND: Eliminar PRODUCTOS_MOCK y DURACION_SUBASTA_SEGUNDOS.
+// Reemplazar la carga de datos por:
+//   const { data: producto } = await api.get(ENDPOINTS.AUCTION_BY_ID(productId))
+// El objeto debe tener la forma:
+// {
+//   id:                string
+//   titulo:            string
+//   descripcion:       string
+//   imagenes:          string[]   → URLs de Cloudinary (ya no nulls)
+//   moneda:            'AR$' | 'U$D'
+//   ultimaPuja:        number     → precio de la última puja (actualizado en tiempo real)
+//   estado:            'proximamente' | 'vivo' | 'finalizado'
+//   fechaProximamente: string | null
+//   enlace:            string | null  → URL de transmisión en vivo
+//   articulosIncluidos: string[]
+// }
+// El campo "coloresPlaceholder" puede eliminarse una vez que lleguen URLs reales de Cloudinary.
+
+const DURACION_SUBASTA_SEGUNDOS = 60; // TODO BACKEND: este valor debe venir del campo duracionSegundos del objeto subasta
+
 const PRODUCTOS_MOCK = {
   '1': {
     id: 'ART-00142',
     titulo: 'Cuadro de rosas',
     descripcion: 'Hermoso cuadro pintado a mano con técnica al óleo. Dimensiones 80x60cm. Firmado por el artista. En excelente estado de conservación.',
-    imagenes: [null, null, null],
-    coloresPlaceholder: ['#C9B99A', '#B0BEC5', '#A5C4A8'],
-    moneda: 'AR$',
-    precioBase: 2000,
-    estado: 'vivo',
+    imagenes: [null, null, null],           // TODO BACKEND: reemplazar nulls por URLs de Cloudinary
+    coloresPlaceholder: ['#C9B99A', '#B0BEC5', '#A5C4A8'], // TODO BACKEND: eliminar cuando lleguen imágenes reales
+    moneda: 'AR$',                          // TODO BACKEND: viene del objeto subasta
+    ultimaPuja: 2000,                       // TODO BACKEND: viene del objeto subasta (actualizar en tiempo real via WebSocket o polling)
+    estado: 'vivo',                         // TODO BACKEND: viene del objeto subasta
     fechaProximamente: null,
-    enlace: '----------------',
-    articulosIncluidos: ['-----', '-----'],
+    enlace: 'https://stream.subastup.com/live/ART-00142', // TODO BACKEND: viene del objeto subasta
+    articulosIncluidos: ['Cuadro 80x60cm', 'Certificado de autenticidad'], // TODO BACKEND: viene del objeto subasta
   },
   '2': {
     id: 'ART-00143',
@@ -77,7 +97,7 @@ const PRODUCTOS_MOCK = {
     imagenes: [null, null],
     coloresPlaceholder: ['#B0BEC5', '#90A4AE'],
     moneda: 'U$D',
-    precioBase: 150,
+    ultimaPuja: 150,
     estado: 'proximamente',
     fechaProximamente: 'Lunes 2, 19:30',
     enlace: null,
@@ -90,11 +110,11 @@ const PRODUCTOS_MOCK = {
     imagenes: [null, null],
     coloresPlaceholder: ['#A5C4A8', '#80CBC4'],
     moneda: 'AR$',
-    precioBase: 800,
+    ultimaPuja: 800,
     estado: 'vivo',
     fechaProximamente: null,
-    enlace: '----------------',
-    articulosIncluidos: ['-----', '-----', '-----'],
+    enlace: 'https://stream.subastup.com/live/ART-00144',
+    articulosIncluidos: ['Lámpara de pared', 'Bombilla LED incluida', 'Cable de 1.5m'],
   },
   '4': {
     id: 'ART-00145',
@@ -103,11 +123,11 @@ const PRODUCTOS_MOCK = {
     imagenes: [null, null],
     coloresPlaceholder: ['#C4A58A', '#BCAAA4'],
     moneda: 'AR$',
-    precioBase: 500000,
+    ultimaPuja: 500000,
     estado: 'vivo',
     fechaProximamente: null,
-    enlace: '----------------',
-    articulosIncluidos: ['-----'],
+    enlace: 'https://stream.subastup.com/live/ART-00145',
+    articulosIncluidos: ['Volkswagen Escarabajo 1972'],
   },
 };
 
@@ -126,6 +146,78 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
   const productId = route?.params?.productId ?? '1';
   const producto  = PRODUCTOS_MOCK[productId] ?? PRODUCTOS_MOCK['1'];
 
+  // TODO BACKEND: reemplazar por el userId real del authStore (Zustand)
+  // Ejemplo: const { userId } = useAuthStore()
+  const MI_USER_ID = 'user-mock-123';
+
+  // ── Datos en tiempo real ──────────────────────
+  // TODO BACKEND: reemplazar ultimaPujaLocal con el valor que llega del WebSocket o polling
+  // Suscribirse al canal: ws://api.subastup.com/auctions/${productId}/bids
+  // Al recibir evento 'nueva_puja': setUltimaPujaLocal(event.monto); resetContador()
+  const [ultimaPujaLocal,    setUltimaPujaLocal]    = useState(producto.ultimaPuja);
+  const [ultimoPujadorId,    setUltimoPujadorId]    = useState(null); // TODO BACKEND: llega del WebSocket
+
+  // ── Contador regresivo ────────────────────────
+  const [segundosRestantes,  setSegundosRestantes]  = useState(DURACION_SUBASTA_SEGUNDOS);
+  const intervalRef = useRef(null);
+
+  const resetContador = useCallback(() => {
+    setSegundosRestantes(DURACION_SUBASTA_SEGUNDOS);
+  }, []);
+
+  const detenerContador = useCallback(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+  }, []);
+
+  // ── Modales de fin de subasta ─────────────────
+  const [modalGanador,   setModalGanador]   = useState(false);
+  const [modalPerdedor,  setModalPerdedor]  = useState(false);
+  const montadoRef = useRef(true); // evita disparar modales si el usuario ya navegó a otra pantalla
+
+  useEffect(() => {
+    montadoRef.current = true;
+    return () => { montadoRef.current = false; };
+  }, []);
+
+  const manejarFinSubasta = useCallback(() => {
+    detenerContador();
+    if (!montadoRef.current) return; // el usuario ya salió de la pantalla, no hacer nada
+    // TODO BACKEND: en lugar de comparar ultimoPujadorId local, escuchar evento
+    // 'subasta_finalizada' del WebSocket con { ganadorId, auctionId }
+    // Si el usuario ganó: enviar push notification (el backend la maneja)
+    // y navegar luego a Home también desde el backend via push notification
+    if (ultimoPujadorId === MI_USER_ID) {
+      setModalGanador(true);
+    } else {
+      setModalPerdedor(true);
+    }
+  }, [ultimoPujadorId, MI_USER_ID, detenerContador]);
+
+  // El timer solo corre mientras esta pantalla tiene el foco.
+  // Al navegar a otra pantalla se pausa; al volver se reanuda.
+  // Así se evita que el modal aparezca en otra pantalla.
+  useFocusEffect(
+    useCallback(() => {
+      if (producto.estado !== 'vivo') return;
+      intervalRef.current = setInterval(() => {
+        setSegundosRestantes((prev) => {
+          if (prev <= 1) {
+            clearInterval(intervalRef.current);
+            manejarFinSubasta();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => {
+        if (intervalRef.current) clearInterval(intervalRef.current);
+      };
+    }, [producto.estado, manejarFinSubasta])
+  );
+
+  // Porcentaje para la barra visual
+  const porcentajeTiempo = segundosRestantes / DURACION_SUBASTA_SEGUNDOS;
+
   // ── Carrusel ─────────────────────────────────
   const [activeSlide, setActiveSlide] = useState(0);
   const onSlideChange = (e) => {
@@ -133,21 +225,53 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
     setActiveSlide(slide);
   };
 
+  // ── Scroll automático al abrir teclado ───────
+  const scrollRef = useRef(null);
+  const pujaOffsetY = useRef(0); // posición Y del pujaBloque dentro del ScrollView
+
   // ── Modales ──────────────────────────────────
-  const [modalEnlace,      setModalEnlace]      = useState(false);
-  const [modalInfo,        setModalInfo]        = useState(false);
-  const [modalRecordatorio,setModalRecordatorio]= useState(false);
+  const [modalEnlace,       setModalEnlace]       = useState(false);
+  const [modalInfo,         setModalInfo]         = useState(false);
+  const [modalRecordatorio, setModalRecordatorio] = useState(false);
 
   // ── Teclado numérico de puja ──────────────────
   const [tecladoVisible, setTecladoVisible] = useState(false);
   const [montoPuja,      setMontoPuja]      = useState('');
 
+  // ── Método de pago ────────────────────────────
+  // TODO BACKEND: eliminar DEV_TIENE_METODO_PAGO y reemplazar tieneMétodoPago por:
+  //   const { data } = await api.get(ENDPOINTS.PAYMENT_METHODS)
+  //   const tieneMetodoPago = data.length > 0
+  // ⚠️  Para testear SIN backend: cambiar DEV_TIENE_METODO_PAGO a false → aparece el modal
+  const DEV_TIENE_METODO_PAGO = true; // TODO BACKEND: borrar esta línea
+  const [modalSinMetodoPago, setModalSinMetodoPago] = useState(false);
+
   const handleTecla = (tecla) => {
     if (tecla === '←') {
       setMontoPuja((prev) => prev.slice(0, -1));
     } else if (tecla === 'Pujar') {
-      // TODO Avance 03: api.post(ENDPOINTS.BIDS, { auctionId: producto.id, monto: montoPuja })
-      console.log('[Puja] Monto:', montoPuja);
+      // TODO BACKEND: reemplazar DEV_TIENE_METODO_PAGO por llamada real a la API
+      if (!DEV_TIENE_METODO_PAGO) {
+        setTecladoVisible(false);
+        setModalSinMetodoPago(true);
+        return;
+      }
+      const monto = Number(montoPuja.replace(',', '.'));
+      if (!monto || monto <= ultimaPujaLocal) {
+        // Monto inválido o menor/igual a la puja actual — no se permite
+        mostrarToast(`La puja debe ser mayor a ${producto.moneda} ${ultimaPujaLocal.toLocaleString('es-AR')}`);
+        return;
+      }
+      // TODO BACKEND: reemplazar console.log por llamada real:
+      //   await api.post(ENDPOINTS.BIDS, { auctionId: producto.id, monto })
+      // Si la respuesta es exitosa:
+      //   - setUltimaPujaLocal(monto)
+      //   - setUltimoPujadorId(MI_USER_ID)
+      //   - resetContador()   ← el backend también debe emitir evento WebSocket a todos los viewers
+      console.log('[Puja] Monto:', monto, '| Subasta:', producto.id);
+      setUltimaPujaLocal(monto);
+      setUltimoPujadorId(MI_USER_ID); // mock local: en backend llega por WebSocket
+      resetContador();
       setTecladoVisible(false);
       setMontoPuja('');
     } else {
@@ -183,7 +307,7 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
   const handleItemPress = (item) => {
     closeMenu();
     if (!item.nav) return;
-    const TABS = ['Home', 'Search', 'Calendar', 'Chats', 'Profile'];
+    const TABS = ['Main', 'Search', 'Calendar', 'Chats', 'Profile'];
     if (TABS.includes(item.nav)) {
       navigation.navigate(item.nav);
     } else {
@@ -238,6 +362,7 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
 
       {/* ── Contenido scrolleable ─────────────────── */}
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 110 }]}
       >
@@ -270,10 +395,16 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
         <Text style={styles.titulo}>{producto.titulo}</Text>
         <Text style={styles.idText}>ID: {producto.id}</Text>
 
-        {/* Descripción */}
+        {/* Descripción — caja scrolleable de altura fija */}
         <Text style={styles.descLabel}>Descripcion</Text>
         <View style={styles.separadorLinea} />
-        <Text style={styles.descTexto}>{producto.descripcion}</Text>
+        <ScrollView
+          style={styles.descScroll}
+          nestedScrollEnabled={true}
+          showsVerticalScrollIndicator={true}
+        >
+          <Text style={styles.descTexto}>{producto.descripcion}</Text>
+        </ScrollView>
 
         {/* ══ ESTADO: VIVO ══════════════════════════ */}
         {esVivo && (
@@ -282,41 +413,83 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
             <View style={styles.accionesRow}>
               <TouchableOpacity style={styles.btnAccion} onPress={() => setModalEnlace(true)}>
                 <Ionicons name="link-outline" size={24} color="#1A1A1A" />
+                <Text style={styles.btnAccionLabel}>Enlace</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.btnAccion} onPress={() => setModalInfo(true)}>
                 <Ionicons name="information-circle-outline" size={24} color="#1A1A1A" />
+                <Text style={styles.btnAccionLabel}>Informacion</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Barra de tiempo restante */}
+            {/* Barra de tiempo restante — más delgada */}
+            {/* TODO BACKEND: segundosRestantes se resetea localmente al pujar.
+                Para sincronizar entre usuarios usar WebSocket: evento 'timer_reset' con { segundos } */}
             <View style={styles.tiempoContainer}>
-              <Text style={styles.tiempoLabel}>Tiempo restante</Text>
               <View style={styles.tiempoBarraRow}>
-                <View style={styles.tiempoBarra}>
-                  <View style={[styles.tiempoBarraFill, { width: '60%' }]} />
-                </View>
-                <Text style={styles.tiempoSeg}>38 Seg</Text>
+                <Text style={styles.tiempoLabel}>Tiempo restante</Text>
+                <Text style={styles.tiempoSeg}>{segundosRestantes} seg</Text>
+              </View>
+              <View style={styles.tiempoBarra}>
+                <View style={[styles.tiempoBarraFill, { width: `${porcentajeTiempo * 100}%` }]} />
               </View>
             </View>
 
-            {/* Moneda + Pujar */}
-            <View style={styles.pujarRow}>
-              <TouchableOpacity
-                style={styles.monedaBtn}
-                onPress={() => setTecladoVisible(true)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.monedaText}>
-                  {producto.moneda}
-                  {montoPuja ? `  ${montoPuja}` : ''}
+            {/* Bloque de puja: precio actual llamativo + campo de nueva puja */}
+            {/* TODO BACKEND: ultimaPujaLocal debe actualizarse en tiempo real via WebSocket
+                evento 'nueva_puja': { monto, pujadorId } → setUltimaPujaLocal(monto) */}
+            <View
+              style={styles.pujaBloque}
+              onLayout={(e) => { pujaOffsetY.current = e.nativeEvent.layout.y; }}
+            >
+              {/* Panel izquierdo: precio actual */}
+              <View style={styles.precioActualPanel}>
+                <Text style={styles.precioActualLabel}>Puja actual</Text>
+                <Text style={styles.precioActualMoneda}>{producto.moneda}</Text>
+                <Text style={styles.precioActualMonto}>
+                  {ultimaPujaLocal.toLocaleString('es-AR')}
                 </Text>
-              </TouchableOpacity>
+              </View>
+
+              {/* Separador vertical */}
+              <View style={styles.pujaSeparadorV} />
+
+              {/* Panel derecho: campo de nueva puja */}
               <TouchableOpacity
-                style={styles.pujarBtn}
-                onPress={() => setTecladoVisible(true)}
-                activeOpacity={0.85}
+                style={styles.nuevaPujaPanel}
+                onPress={() => {
+                  // TODO BACKEND: reemplazar DEV_TIENE_METODO_PAGO por llamada real a la API
+                  if (!DEV_TIENE_METODO_PAGO) {
+                    setModalSinMetodoPago(true);
+                    return;
+                  }
+                  setTecladoVisible(true);
+                  // Scroll hasta el pujaBloque para que el teclado no lo tape
+                  setTimeout(() => {
+                    scrollRef.current?.scrollTo({ y: pujaOffsetY.current - 20, animated: true });
+                  }, 50);
+                }}
+                activeOpacity={0.75}
               >
-                <Text style={styles.pujarBtnText}>Pujar</Text>
+                <Text style={styles.nuevaPujaLabel}>Tu puja</Text>
+                <View style={styles.nuevaPujaInputRow}>
+                  {montoPuja ? (
+                    <Text style={styles.nuevaPujaMoneda}>{producto.moneda}</Text>
+                  ) : null}
+                  <Text style={[styles.nuevaPujaValor, !montoPuja && styles.nuevaPujaPlaceholder]}>
+                    {montoPuja
+                      ? Number(montoPuja.replace(',','.')).toLocaleString('es-AR')
+                      : 'Ingresar'}
+                  </Text>
+                  <Ionicons name="chevron-up" size={16} color="#8b0000" />
+                </View>
+                {montoPuja ? (
+                  <TouchableOpacity
+                    style={styles.nuevaPujaBtnConfirmar}
+                    onPress={() => handleTecla('Pujar')}
+                  >
+                    <Text style={styles.nuevaPujaBtnText}>Pujar</Text>
+                  </TouchableOpacity>
+                ) : null}
               </TouchableOpacity>
             </View>
           </>
@@ -350,6 +523,19 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
           <View style={styles.tecladoOverlay}>
             <TouchableWithoutFeedback>
               <View style={styles.teclado}>
+
+                {/* ── Banner puja actual (visible solo con teclado abierto) ── */}
+                <View style={styles.tecladoPujaActualBanner}>
+                  <View style={styles.tecladoPujaActualLeft}>
+                    <Text style={styles.tecladoPujaActualLabel}>PUJA ACTUAL</Text>
+                    <Text style={styles.tecladoPujaActualMonto}>
+                      {producto.moneda}{'  '}
+                      <Text style={styles.tecladoPujaActualMontoValor}>
+                        {ultimaPujaLocal.toLocaleString('es-AR')}
+                      </Text>
+                    </Text>
+                  </View>
+                </View>
 
                 {/* ── Display de monto ── */}
                 <View style={styles.tecladoDisplay}>
@@ -394,6 +580,56 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
           </View>
         </TouchableWithoutFeedback>
       )}
+
+      {/* ══════════════════════════════════════════════
+          MODAL SIN MÉTODO DE PAGO
+          TODO BACKEND: este modal se dispara cuando la API confirma que el usuario
+          no tiene métodos de pago registrados. Borrar DEV_TIENE_METODO_PAGO y
+          reemplazar por: const tieneMetodoPago = (await api.get(ENDPOINTS.PAYMENT_METHODS)).data.length > 0
+      ══════════════════════════════════════════════ */}
+      <Modal visible={modalSinMetodoPago} transparent animationType="fade" onRequestClose={() => setModalSinMetodoPago(false)}>
+        <TouchableWithoutFeedback onPress={() => setModalSinMetodoPago(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.modalCard, styles.modalSinPagoCard]}>
+                <TouchableOpacity style={styles.modalCloseX} onPress={() => setModalSinMetodoPago(false)}>
+                  <Ionicons name="close" size={22} color="#1A1A1A" />
+                </TouchableOpacity>
+
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalHeaderText}>Método de pago requerido</Text>
+                </View>
+
+                <View style={styles.modalBody}>
+                  <View style={styles.sinPagoIconCircle}>
+                    <Ionicons name="card-outline" size={44} color="#8b0000" />
+                  </View>
+                  <Text style={styles.sinPagoTitulo}>
+                    Necesitás un método de pago registrado para poder pujar.
+                  </Text>
+                  <Text style={styles.sinPagoSubtitulo}>
+                    Agregá una tarjeta o medio de pago para participar en subastas.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.sinPagoBtn}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      setModalSinMetodoPago(false);
+                      // TODO BACKEND: la pantalla MetodosDePago aún no existe.
+                      // Cuando se cree, registrarla en AppNavigator con:
+                      //   <Stack.Screen name="MetodosDePago" component={MetodosDePagoScreen} />
+                      navigation.navigate('MetodosDePago');
+                    }}
+                  >
+                    <Ionicons name="card-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                    <Text style={styles.sinPagoBtnText}>Métodos de pago</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
 
       {/* ══════════════════════════════════════════════
           MODAL ENLACE
@@ -474,16 +710,13 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback>
               <View style={[styles.modalCard, styles.modalRecordatorioCard]}>
-                {/* Ícono */}
                 <View style={styles.recordatorioIconCircle}>
                   <Ionicons name="information-circle-outline" size={40} color="#1A1A1A" />
                 </View>
-
                 <Text style={styles.recordatorioTitulo}>Datos guardados y en revision</Text>
                 <Text style={styles.recordatorioBody}>
                   Tu recordatorio fue registrado. Te notificaremos antes de que comience la subasta.
                 </Text>
-
                 <TouchableOpacity
                   style={styles.recordatorioCerrarBtn}
                   onPress={() => setModalRecordatorio(false)}
@@ -494,6 +727,79 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
             </TouchableWithoutFeedback>
           </View>
         </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* ══════════════════════════════════════════════
+          MODAL FIN DE SUBASTA — GANADOR
+          TODO BACKEND: este modal debe abrirse al recibir evento WebSocket
+          'subasta_finalizada' con { ganadorId } donde ganadorId === userId del authStore
+          También enviar push notification al ganador con datos de envío
+      ══════════════════════════════════════════════ */}
+      <Modal visible={modalGanador} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalHeaderText}>¡Ganaste la subasta!</Text>
+            </View>
+            <View style={styles.modalBody}>
+              <View style={styles.finIconRow}>
+                <Ionicons name="trophy-outline" size={48} color="#8b0000" />
+              </View>
+              <Text style={styles.finTitulo}>¡Felicitaciones!</Text>
+              <Text style={styles.finBody}>
+                Sos el ganador de "{producto.titulo}".{'\n\n'}
+                Te enviaremos un correo con los datos de envío y pago a la brevedad.
+              </Text>
+              <TouchableOpacity
+                style={styles.finAceptarBtn}
+                onPress={() => {
+                  setModalGanador(false);
+                  // TODO BACKEND: marcar la subasta como 'finalizado' en el store local
+                  // para que desaparezca de los listados
+                  navigation.navigate('Main');
+                }}
+              >
+                <Text style={styles.finAceptarText}>Aceptar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ══════════════════════════════════════════════
+          MODAL FIN DE SUBASTA — PERDEDOR / ESPECTADOR
+          TODO BACKEND: este modal debe abrirse al recibir evento WebSocket
+          'subasta_finalizada' con { ganadorId } donde ganadorId !== userId del authStore
+      ══════════════════════════════════════════════ */}
+      <Modal visible={modalPerdedor} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalHeaderText}>Subasta finalizada</Text>
+            </View>
+            <View style={styles.modalBody}>
+              <View style={styles.finIconRow}>
+                <Ionicons name="flag-outline" size={48} color="#6e6e6e" />
+              </View>
+              <Text style={styles.finTitulo}>La subasta ha concluido</Text>
+              <Text style={styles.finBody}>
+                La subasta de "{producto.titulo}" finalizó.{'\n\n'}
+                Seguí explorando más subastas disponibles.
+              </Text>
+              <TouchableOpacity
+                style={styles.finAceptarBtn}
+                onPress={() => {
+                  setModalPerdedor(false);
+                  // TODO BACKEND: marcar la subasta como 'finalizado' en el store local
+                  // para que desaparezca de los listados
+                  navigation.navigate('Main');
+                }}
+              >
+                <Text style={styles.finAceptarText}>Aceptar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
       {/* ══════════════════════════════════════════════
@@ -621,9 +927,7 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
             <TouchableOpacity
               key={i}
               style={styles.tabItem}
-              onPress={() => {
-                if (tab.name !== 'Chats') navigation.navigate(tab.name);
-              }}
+              onPress={() => navigation.navigate(tab.name)}
             >
               <Ionicons
                 name={tab.icon}
@@ -692,7 +996,16 @@ const styles = StyleSheet.create({
   },
   descTexto: {
     fontSize: 14, color: '#444444', lineHeight: 22,
-    paddingHorizontal: 24, marginBottom: 24,
+    padding: 12,
+  },
+  descScroll: {
+    maxHeight: 80,
+    marginHorizontal: 24,
+    marginBottom: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    backgroundColor: 'rgba(0,0,0,0.04)',
   },
 
   // ── Estado VIVO ──
@@ -700,7 +1013,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 16,
-    marginBottom: 20,
+    marginBottom: 12,
     paddingHorizontal: 24,
   },
   btnAccion: {
@@ -721,40 +1034,113 @@ const styles = StyleSheet.create({
     color: '#1A1A1A',
   },
 
-  tiempoContainer: { paddingHorizontal: 24, marginBottom: 16 },
-  tiempoLabel:     { fontSize: 13, color: '#1A1A1A', fontWeight: '600', marginBottom: 8 },
-  tiempoBarraRow:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  tiempoBarra: {
-    flex: 1, height: 18, backgroundColor: '#E0E0E0', borderRadius: 9, overflow: 'hidden',
-  },
-  tiempoBarraFill: { height: '100%', backgroundColor: '#8b0000', borderRadius: 9 },
-  tiempoSeg:       { fontSize: 13, color: '#1A1A1A', fontWeight: '500', minWidth: 48, textAlign: 'right' },
-
-  pujarRow: {
+  tiempoContainer: { paddingHorizontal: 24, marginBottom: 14 },
+  tiempoBarraRow: {
     flexDirection: 'row',
-    paddingHorizontal: 24,
-    gap: 12,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  tiempoLabel: { fontSize: 12, color: '#888', fontWeight: '500' },
+  tiempoBarra: {
+    height: 6,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  tiempoBarraFill: { height: '100%', backgroundColor: '#8b0000', borderRadius: 3 },
+  tiempoSeg: { fontSize: 12, color: '#8b0000', fontWeight: '700' },
+
+  // Bloque de puja: precio actual + nueva puja
+  pujaBloque: {
+    marginHorizontal: 24,
     marginBottom: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#E0E0E0',
+    flexDirection: 'row',
+    overflow: 'hidden',
+    minHeight: 100,
   },
-  monedaBtn: {
+  precioActualPanel: {
     flex: 1,
-    height: 52,
-    backgroundColor: '#6e6e6e',
-    borderRadius: 10,
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
-  monedaText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
-  pujarBtn: {
-    width: 110,
-    height: 52,
     backgroundColor: '#8b0000',
-    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 4,
+    paddingVertical: 18,
+    paddingHorizontal: 10,
+    gap: 2,
   },
-  pujarBtnText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700' },
+  precioActualLabel: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.75)',
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  precioActualMoneda: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '600',
+  },
+  precioActualMonto: {
+    fontSize: 26,
+    color: '#FFFFFF',
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  pujaSeparadorV: {
+    width: 1,
+    backgroundColor: '#E0E0E0',
+  },
+  nuevaPujaPanel: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    backgroundColor: '#FAFAFA',
+    gap: 6,
+  },
+  nuevaPujaLabel: {
+    fontSize: 11,
+    color: '#888',
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  nuevaPujaInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  nuevaPujaMoneda: {
+    fontSize: 13,
+    color: '#555',
+    fontWeight: '600',
+  },
+  nuevaPujaValor: {
+    fontSize: 20,
+    color: '#1A1A1A',
+    fontWeight: '700',
+  },
+  nuevaPujaPlaceholder: {
+    color: '#BDBDBD',
+    fontSize: 16,
+    fontWeight: '400',
+  },
+  nuevaPujaBtnConfirmar: {
+    marginTop: 4,
+    backgroundColor: '#8b0000',
+    paddingHorizontal: 20,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  nuevaPujaBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
 
   // ── Estado PROXIMAMENTE ──
   proximamenteBtn: {
@@ -1014,4 +1400,109 @@ const styles = StyleSheet.create({
   tabItem:       { flex: 1, alignItems: 'center', justifyContent: 'center' },
   tabLabel:      { fontSize: 11, color: '#9E9E9E', fontWeight: '500', marginTop: 3 },
   tabLabelActive:{ color: '#8b0000', fontWeight: '700' },
+
+  // Modales fin de subasta
+  finIconRow: {
+    alignItems: 'center',
+    marginBottom: 12,
+    marginTop: 4,
+  },
+  finTitulo: {
+    fontSize: 17, fontWeight: '800', color: '#1A1A1A',
+    textAlign: 'center', marginBottom: 10,
+  },
+  finBody: {
+    fontSize: 14, color: '#555', textAlign: 'center',
+    lineHeight: 21, marginBottom: 20,
+  },
+  finAceptarBtn: {
+    backgroundColor: '#8b0000',
+    paddingHorizontal: 40,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignSelf: 'center',
+    elevation: 3,
+  },
+  finAceptarText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+
+  // ── Banner puja actual sobre teclado ──────────
+  tecladoPujaActualBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF5EC',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#E8D5C8',
+  },
+  tecladoPujaActualLeft: { flex: 1 },
+  tecladoPujaActualLabel: {
+    fontSize: 10,
+    color: '#9E9E9E',
+    fontWeight: '700',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  tecladoPujaActualMonto: {
+    fontSize: 13,
+    color: '#555',
+    fontWeight: '600',
+  },
+  tecladoPujaActualMontoValor: {
+    fontSize: 20,
+    color: '#8b0000',
+    fontWeight: '800',
+  },
+  tecladoPujaActualRight: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FDE8E8',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // ── Modal sin método de pago ──────────────────
+  modalSinPagoCard: {},
+  sinPagoIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#FDE8E8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginBottom: 16,
+    marginTop: 4,
+  },
+  sinPagoTitulo: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    textAlign: 'center',
+    marginBottom: 8,
+    lineHeight: 22,
+  },
+  sinPagoSubtitulo: {
+    fontSize: 13,
+    color: '#777',
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 20,
+  },
+  sinPagoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#8b0000',
+    paddingVertical: 13,
+    borderRadius: 10,
+    elevation: 3,
+  },
+  sinPagoBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
 });

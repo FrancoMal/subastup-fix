@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -26,10 +26,10 @@ const CARD_HEIGHT  = CARD_WIDTH * 1.4;
 
 // ─── Barra de navegación inferior ────────────────────────────────────────────
 const BOTTOM_NAV_TABS = [
-  { name: 'Home',     label: 'Inicio',   icon: 'home-outline' },
-  { name: 'Search',   label: 'Mensajes', icon: 'mail-outline' },
-  { name: 'Publicar', label: 'Publicar', icon: 'add-circle-outline' },
-  { name: 'Chats',    label: 'Pujar',    icon: 'flag-outline' },
+  { name: 'Main',           label: 'Inicio',   icon: 'home-outline' },
+  { name: 'Mensajes',       label: 'Mensajes', icon: 'mail-outline' },
+  { name: 'CargarProducto', label: 'Publicar', icon: 'add-circle-outline' },
+  { name: 'PujarAuth',      label: 'Pujar',    icon: 'flag-outline' },
 ];
 
 // ─── Mismos datos que HomeAuthenticatedScreen ────────────────────────────────
@@ -51,27 +51,101 @@ const DRAWER_GROUPS = [
 
 const NOTIFICATIONS = [];
 
-// ─── Categorías y mock ───────────────────────────────────────────────────────
-const CATEGORIAS = {
+// ─── MOCK — BACKEND INTEGRATION ──────────────────────────────────────────────
+// TODO BACKEND: eliminar CATEGORIAS_MOCK y PRODUCTOS_MOCK por completo.
+//
+// CATEGORÍAS:
+//   Reemplazar con: const { data: categorias } = await api.get(ENDPOINTS.AUCTION_CATEGORIES)
+//   El array debe tener la forma: string[]  → ['Comun', 'Especial', 'Plata', 'Oro', 'Platino']
+//   El filtro por auctionType ('comun' | 'especial') lo resuelve el backend
+//   pasando el tipo como query param: api.get(`${ENDPOINTS.AUCTION_CATEGORIES}?tipo=${auctionType}`)
+//
+// PRODUCTOS:
+//   Reemplazar con: const { data: productos } = await api.get(ENDPOINTS.AUCTIONS, {
+//     params: { tipo: auctionType, categoria: selected, q: search }
+//   })
+//   Cada producto debe tener la forma:
+//   {
+//     id:           string
+//     titulo:       string
+//     moneda:       'AR$' | 'U$D'
+//     imagenUrl:    string        → URL de Cloudinary (reemplaza el campo 'color' del mock)
+//     proximamente: boolean
+//     fecha:        string | null → solo si proximamente === true
+//     estado:       'vivo' | 'proximamente' | 'finalizado'
+//   }
+//   Las subastas con estado 'finalizado' NO deben incluirse en la respuesta del backend.
+//
+// BÚSQUEDA EN TIEMPO REAL:
+//   Implementar debounce de ~400ms sobre el campo `search` antes de llamar al endpoint
+//   para no saturar el servidor con cada keystroke. Ejemplo con lodash:
+//   const debouncedSearch = useCallback(_.debounce((q) => cargarProductos(q), 400), [])
+
+const CATEGORIAS_MOCK = {
   especial: ['Oro', 'Platino'],
   comun:    ['Comun', 'Especial', 'Plata', 'Oro', 'Platino'],
 };
 
 const PRODUCTOS_MOCK = [
-  { id: '1', titulo: 'Cuadro de rosas',  moneda: 'U$D', proximamente: false, color: '#C9B99A' },
-  { id: '2', titulo: 'Silla de oficina', moneda: 'U$D', proximamente: true,  fecha: 'Martes 18, 15:00', color: '#B0BEC5' },
-  { id: '3', titulo: 'Lampara de pared', moneda: 'AR$', proximamente: false, color: '#A5C4A8' },
-  { id: '4', titulo: 'Auto antiguo',     moneda: 'AR$', proximamente: false, color: '#C4A58A' },
+  { id: '1', titulo: 'Cuadro de rosas',  moneda: 'U$D', proximamente: false, color: '#C9B99A', estado: 'vivo' },
+  { id: '2', titulo: 'Silla de oficina', moneda: 'U$D', proximamente: true,  fecha: 'Martes 18, 15:00', color: '#B0BEC5', estado: 'proximamente' },
+  { id: '3', titulo: 'Lampara de pared', moneda: 'AR$', proximamente: false, color: '#A5C4A8', estado: 'vivo' },
+  { id: '4', titulo: 'Auto antiguo',     moneda: 'AR$', proximamente: false, color: '#C4A58A', estado: 'vivo' },
 ];
 
 // ─── Pantalla ────────────────────────────────────────────────────────────────
 export default function AuctionListAuthScreen({ navigation, route }) {
   const insets      = useSafeAreaInsets();
   const auctionType = route?.params?.auctionType ?? 'comun';
-  const categorias  = CATEGORIAS[auctionType] ?? CATEGORIAS.comun;
+
+  // TODO BACKEND: reemplazar CATEGORIAS_MOCK[auctionType] por el resultado de
+  // api.get(`${ENDPOINTS.AUCTION_CATEGORIES}?tipo=${auctionType}`)
+  const categorias = CATEGORIAS_MOCK[auctionType] ?? CATEGORIAS_MOCK.comun;
 
   const [search,   setSearch]   = useState('');
   const [selected, setSelected] = useState(categorias[0]);
+
+  // ── Estado de datos ───────────────────────────
+  // TODO BACKEND: estos estados se usan igual con datos reales, no hay que cambiarlos.
+  const [productos, setProductos] = useState([]);
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState(null);
+
+  // ── Carga de productos ────────────────────────
+  const cargarProductos = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // TODO BACKEND: eliminar el bloque mock de abajo (líneas marcadas con [MOCK])
+      // y descomentar la llamada real a la API:
+      //
+      // const { data } = await api.get(ENDPOINTS.AUCTIONS, {
+      //   params: { tipo: auctionType, categoria: selected, q: search }
+      // });
+      // setProductos(data);
+
+      // [MOCK] — eliminar cuando conectes el backend ──────────────────────────
+      await new Promise((r) => setTimeout(r, 300)); // simula latencia de red
+      const filtrados = PRODUCTOS_MOCK.filter((p) => {
+        const matchSearch = p.titulo.toLowerCase().includes(search.toLowerCase());
+        // el filtro por categoría lo haría el backend; acá lo omitimos por simplicidad
+        return matchSearch;
+      });
+      setProductos(filtrados);
+      // ──────────────────────────────────────────────────────────────────────
+
+    } catch (e) {
+      setError('No se pudieron cargar las subastas. Intentá de nuevo.');
+      console.error('[AuctionListAuth] Error al cargar productos:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [auctionType, selected, search]);
+
+  // Cargar al montar y cuando cambian los filtros
+  useEffect(() => {
+    cargarProductos();
+  }, [cargarProductos]);
 
   // ── Drawer state ─────────────────────────────
   const [menuOpen, setMenuOpen] = useState(false);
@@ -135,26 +209,28 @@ export default function AuctionListAuthScreen({ navigation, route }) {
 
   // ── Bottom nav handler ───────────────────────
   const handleBottomNav = (tabName) => {
-    if (tabName === 'Home') {
-      navigation.navigate('Home');
-    } else if (tabName === 'Search') {
-      navigation.navigate('Search');
-    } else if (tabName === 'Publicar') {
-      navigation.navigate('Publicar');
-    } else if (tabName === 'Chats') {
+    if (tabName === 'Main') {
+      navigation.navigate('Main');
+    } else if (tabName === 'Mensajes') {
+      navigation.navigate('Mensajes');
+    } else if (tabName === 'CargarProducto') {
+      navigation.navigate('CargarProducto');
+    } else if (tabName === 'PujarAuth') {
       // Ya estamos en la pantalla de pujar, no hacemos nada
     }
   };
 
   // ── Cards ────────────────────────────────────
-  const productosFiltrados = PRODUCTOS_MOCK.filter(() => true);
-
+  // TODO BACKEND: el campo `item.color` desaparece cuando llegue `item.imagenUrl` de Cloudinary.
+  // En renderCard, reemplazar el <View style={cardImage} /> por:
+  //   <Image source={{ uri: item.imagenUrl }} style={styles.cardImage} resizeMode="cover" />
   const renderCard = ({ item, index }) => (
     <TouchableOpacity
       style={[styles.card, index % 2 === 0 ? { marginRight: 6 } : { marginLeft: 6 }]}
       activeOpacity={0.85}
       onPress={() => navigation.navigate('AuctionDetailAuth', { productId: item.id })}
     >
+      {/* TODO BACKEND: reemplazar este View por un <Image source={{ uri: item.imagenUrl }} /> */}
       <View style={[styles.cardImage, { backgroundColor: item.color }]} />
 
       <View style={styles.badge}>
@@ -225,22 +301,46 @@ export default function AuctionListAuthScreen({ navigation, route }) {
       </View>
 
       {/* ── Grid ────────────────────────────────── */}
-      <FlatList
-        data={productosFiltrados}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        renderItem={renderCard}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
+      {loading && (
+        // TODO BACKEND: podés reemplazar este Text por un <ActivityIndicator /> de react-native
+        // para una experiencia más prolija durante la carga inicial
+        <View style={styles.feedbackContainer}>
+          <Text style={styles.feedbackText}>Cargando subastas...</Text>
+        </View>
+      )}
+      {!loading && error && (
+        <View style={styles.feedbackContainer}>
+          <Ionicons name="wifi-outline" size={40} color="#D0D0D0" />
+          <Text style={styles.feedbackText}>{error}</Text>
+          <TouchableOpacity style={styles.reintentarBtn} onPress={cargarProductos}>
+            <Text style={styles.reintentarText}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      {!loading && !error && (
+        <FlatList
+          data={productos}
+          keyExtractor={(item) => item.id}
+          numColumns={2}
+          renderItem={renderCard}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.feedbackContainer}>
+              <Ionicons name="search-outline" size={40} color="#D0D0D0" />
+              <Text style={styles.feedbackText}>No hay subastas disponibles</Text>
+            </View>
+          }
+        />
+      )}
 
       {/* ══════════════════════════════════════════
           BARRA DE NAVEGACIÓN INFERIOR
       ══════════════════════════════════════════ */}
       <View style={[styles.bottomNav, { paddingBottom: insets.bottom + 8 }]}>
         {BOTTOM_NAV_TABS.map((tab, i) => {
-          // "Pujar" (Chats) está activo porque estamos en esta pantalla
-          const isActive = tab.name === 'Chats';
+          // "Pujar" (PujarAuth) está activo porque estamos en esta pantalla
+          const isActive = tab.name === 'PujarAuth';
           return (
             <TouchableOpacity
               key={i}
@@ -441,6 +541,33 @@ const styles = StyleSheet.create({
 
   // Grid
   listContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 120 },
+
+  // Estados de carga / error / vacío
+  feedbackContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 80,
+    gap: 14,
+  },
+  feedbackText: {
+    fontSize: 14,
+    color: '#AAAAAA',
+    textAlign: 'center',
+    paddingHorizontal: 32,
+  },
+  reintentarBtn: {
+    marginTop: 4,
+    backgroundColor: '#8b0000',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  reintentarText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   card: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
