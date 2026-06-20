@@ -23,3 +23,16 @@ export const RADIUS = {
 export const FONTS = {
   sizes: { xs: 11, sm: 13, md: 15, lg: 17, xl: 20, xxl: 24 },
 };
+
+export const DARK_COLORS = {
+  primary:      '#8B0000',
+  primaryLight: '#E53935',
+  secondary:    '#F5F5F5',
+  white:        '#121212',
+  background:   '#1E1E1E',
+  surface:      '#2C2C2C',
+  border:       '#3A3A3A',
+  placeholder:  '#9E9E9E',
+  error:        '#EF5350',
+  success:      '#66BB6A',
+};

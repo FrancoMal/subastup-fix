@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useAppTheme } from '../context/ThemeContext';
 
 import useAuthStore             from '../store/authStore';
 import SplashScreen             from '../screens/SplashScreen';
@@ -22,6 +23,7 @@ const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
   const { isLoggedIn, init } = useAuthStore();
+  const { isDark, theme } = useAppTheme();
 
   const DEV_FORCE_LOGIN = false; // ← SOLO DESARROLLO, sacar antes de entregar
 
@@ -41,7 +43,28 @@ export default function AppNavigator() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer
+      theme={isDark
+        ? {
+            ...DarkTheme,
+            colors: {
+              ...DarkTheme.colors,
+              primary:      '#8b0000',
+              card:         '#1E1E1E',
+              background:   '#121212',
+              notification: '#8b0000',
+            },
+          }
+        : {
+            ...DefaultTheme,
+            colors: {
+              ...DefaultTheme.colors,
+              primary:      '#8b0000',
+              notification: '#8b0000',
+            },
+          }
+      }
+    >
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!isLoggedIn && !DEV_FORCE_LOGIN ? (
           <>
@@ -61,6 +84,7 @@ export default function AppNavigator() {
             <Stack.Screen name="MiCuenta"         component={MiCuentaScreen} />
             <Stack.Screen name="CargarProducto"   component={CargarProductoScreen} />
             <Stack.Screen name="PujarAuth"        component={AuctionListAuthScreen} />
+            <Stack.Screen name="AuctionDetailAuth" component={AuctionDetailAuthScreen} />
           </>
         )}
       </Stack.Navigator>

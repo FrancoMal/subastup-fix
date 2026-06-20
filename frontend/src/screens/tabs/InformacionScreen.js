@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -13,11 +13,12 @@ import {
 import {
   GraficoEvolucion,
   GraficoDistribucion,
-  RealtimeBadge,
-  useRealtimeData,
   fetchEvolucionMock,
   fetchDistribucionMock,
 } from '../../components/EstadisticasCharts';
+import { COLORS } from '../../constants/colors';
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
@@ -25,7 +26,7 @@ const { width } = Dimensions.get('window');
 // Datos de ejemplo — reemplazá con tu API/estado
 // ──────────────────────────────────────────────
 const MOCK_STATS = {
-  subastasActivas: 4,
+  subastasPerdidas: 7,
   pujasRealizadas: 17,
   subastasGanadas: 3,
   totalGastado: '$128.400',
@@ -53,7 +54,7 @@ const MOCK_HISTORIAL = [
     titulo: 'Silla Eames replica',
     imagen: 'https://picsum.photos/seed/chair/60/60',
     monto: '$31.000',
-    estado: 'Activa',
+    estado: 'Superada',
     fecha: 'hace 1 día',
   },
 ];
@@ -71,9 +72,9 @@ const StatCard = ({ label, value }) => (
 
 const EstadoBadge = ({ estado }) => {
   const colores = {
-    Ganada: { bg: '#e6f4ea', text: '#2d7a3a' },
-    Superada: { bg: '#fdecea', text: '#b3261e' },
-    Activa: { bg: '#e8f0fe', text: '#1a56db' },
+    Ganada:   { bg: '#e8f5e9', text: COLORS.success },
+    Superada: { bg: '#ffebee', text: COLORS.primary },
+    Perdida:  { bg: '#ffebee', text: COLORS.primary },
   };
   const c = colores[estado] || { bg: '#f0f0f0', text: '#555' };
   return (
@@ -105,24 +106,31 @@ const HistorialItem = ({ item, onPress }) => (
 export default function InformacionScreen({ navigation }) {
   const [stats, setStats] = useState(null);
   const [historial, setHistorial] = useState([]);
-  const [lastUpdate, setLastUpdate] = useState(null);
+  const [evolucionData, setEvolucionData] = useState(null);
+  const [distData,      setDistData]      = useState(null);
 
-  // Datos en tiempo real para los gráficos (reemplazá los mock con tu API)
-  const evolucionData = useRealtimeData(async () => {
-    const d = await fetchEvolucionMock();
-    setLastUpdate(new Date());
-    return d;
-  }, 15000);
+  useFocusEffect(
+    React.useCallback(() => {
+      const cargarGraficos = async () => {
+        // TODO: reemplazar con llamada al backend cuando esté disponible
+        const evol = await fetchEvolucionMock();
+        setEvolucionData(evol);
+        const dist = await fetchDistribucionMock();
+        setDistData(dist);
+      };
+      cargarGraficos();
+    }, [])
+  );
 
-  const distData = useRealtimeData(fetchDistribucionMock, 15000);
-
-  useEffect(() => {
-    // Simulá un fetch a tu API aquí
-    setTimeout(() => {
-      setStats(MOCK_STATS);
-      setHistorial(MOCK_HISTORIAL);
-    }, 300);
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      // TODO: reemplazar con GET /api/users/me/stats cuando el backend esté listo
+      setTimeout(() => {
+        setStats(MOCK_STATS);
+        setHistorial(MOCK_HISTORIAL);
+      }, 300);
+    }, [])
+  );
 
   const handleVerArticulos = () => {
     // navigation.navigate('MisArticulos');
@@ -140,14 +148,13 @@ export default function InformacionScreen({ navigation }) {
       {/* ── ESTADÍSTICAS ── */}
       <View style={styles.statsHeader}>
         <Text style={styles.sectionTitle}>ESTADÍSTICAS</Text>
-        <RealtimeBadge lastUpdate={lastUpdate} />
       </View>
 
       {/* Tarjetas resumen */}
       <View style={styles.statsContainer}>
         {stats ? (
           <>
-            <StatCard label="Subastas activas" value={stats.subastasActivas} />
+            <StatCard label="Subastas perdidas" value={stats.subastasPerdidas} />
             <StatCard label="Pujas realizadas" value={stats.pujasRealizadas} />
             <StatCard label="Subastas ganadas" value={stats.subastasGanadas} />
             <StatCard label="Total gastado" value={stats.totalGastado} />
@@ -164,7 +171,6 @@ export default function InformacionScreen({ navigation }) {
       <GraficoDistribucion
         ganadas={distData?.ganadas}
         perdidas={distData?.perdidas}
-        activas={distData?.activas}
         loading={!distData}
       />
 
@@ -181,14 +187,15 @@ export default function InformacionScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
 
       {/* Header fijo */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation?.goBack()} style={styles.backBtn}>
-          <Text style={styles.backIcon}>‹</Text>
+      <View style={styles.topBar}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation?.goBack()}>
+          <Ionicons name="chevron-back" size={26} color="#1a1a1a" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Información</Text>
+        <Text style={styles.topBarTitle}>Información</Text>
+        <View style={{ width: 32 }} />
       </View>
 
       {/* FlatList: solo el historial es scrolleable */}
@@ -215,42 +222,36 @@ export default function InformacionScreen({ navigation }) {
 // Estilos
 // ──────────────────────────────────────────────
 
-const ACCENT = '#FF6B00';  // naranja subasta
-const GRAY_BG = '#F5F5F5';
-const GRAY_BORDER = '#E0E0E0';
-const TEXT_PRIMARY = '#1A1A1A';
-const TEXT_SECONDARY = '#777';
+const ACCENT        = COLORS.primary;
+const GRAY_BG       = COLORS.background;
+const GRAY_BORDER   = COLORS.border;
+const TEXT_PRIMARY  = COLORS.secondary;
+const TEXT_SECONDARY = COLORS.placeholder;
 
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.white,
   },
 
   // ── Header ──
-  header: {
+  topBar: {
+    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: GRAY_BORDER,
-    backgroundColor: '#fff',
+    borderBottomColor: '#F0E8E0',
+    elevation: 3,
+    shadowColor: '#8b0000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
   },
-  backBtn: {
-    marginRight: 8,
-    padding: 4,
-  },
-  backIcon: {
-    fontSize: 28,
-    color: TEXT_PRIMARY,
-    lineHeight: 30,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: TEXT_PRIMARY,
-  },
+  backBtn:     { padding: 4 },
+  topBarTitle: { fontSize: 18, fontWeight: '800', color: '#1A1A1A', letterSpacing: 0.3 },
 
   // ── FlatList ──
   flatContent: {
@@ -286,7 +287,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     width: (width - 52) / 2,
-    backgroundColor: GRAY_BG,
+    backgroundColor: '#FDF5F5',
     borderRadius: 14,
     paddingVertical: 16,
     paddingHorizontal: 14,
@@ -315,7 +316,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.white,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: GRAY_BORDER,
@@ -343,7 +344,7 @@ const styles = StyleSheet.create({
   historialItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.white,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: GRAY_BORDER,

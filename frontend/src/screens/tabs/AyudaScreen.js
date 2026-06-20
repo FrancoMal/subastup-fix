@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppTheme } from '../../context/ThemeContext';
 
 const FAQS = [
   {
@@ -34,16 +35,17 @@ const FAQS = [
 ];
 
 const FAQItem = ({ pregunta, respuesta }) => {
+  const { theme } = useAppTheme();
   const [open, setOpen] = useState(false);
 
   return (
-    <View style={styles.faqItem}>
+    <View style={[styles.faqItem, { borderBottomColor: theme.border }]}>
       <TouchableOpacity
         style={styles.faqQuestion}
         onPress={() => setOpen(v => !v)}
         activeOpacity={0.7}
       >
-        <Text style={styles.faqQuestionText}>{pregunta}</Text>
+        <Text style={[styles.faqQuestionText, { color: theme.secondary }]}>{pregunta}</Text>
         <Ionicons
           name={open ? 'chevron-up' : 'chevron-down'}
           size={18}
@@ -52,25 +54,26 @@ const FAQItem = ({ pregunta, respuesta }) => {
       </TouchableOpacity>
 
       {open && (
-        <Text style={styles.faqAnswer}>{respuesta}</Text>
+        <Text style={[styles.faqAnswer, { color: theme.placeholder }]}>{respuesta}</Text>
       )}
     </View>
   );
 };
 
 export default function AyudaScreen({ navigation }) {
+  const { theme, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.white }]}>
 
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={26} color="#1A1A1A" />
+      <View style={[styles.topBar, { backgroundColor: theme.white, borderBottomColor: theme.border }]}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation?.goBack()}>
+          <Ionicons name="chevron-back" size={26} color="#1a1a1a" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Ayuda</Text>
-        <View style={styles.backBtn} />
+        <Text style={[styles.topBarTitle, { color: theme.secondary }]}>Ayuda</Text>
+        <View style={{ width: 32 }} />
       </View>
 
       <ScrollView
@@ -79,17 +82,17 @@ export default function AyudaScreen({ navigation }) {
       >
 
         {/* Preguntas Frecuentes */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Preguntas Frecuentes</Text>
+        <View style={[styles.card, { backgroundColor: theme.surface }]}>
+          <Text style={[styles.cardTitle, { color: theme.secondary }]}>Preguntas Frecuentes</Text>
           {FAQS.map((item, i) => (
             <FAQItem key={i} pregunta={item.pregunta} respuesta={item.respuesta} />
           ))}
         </View>
 
         {/* Soporte y Seguridad */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Soporte y Seguridad</Text>
-          <Text style={styles.supportText}>
+        <View style={[styles.card, { backgroundColor: theme.surface }]}>
+          <Text style={[styles.cardTitle, { color: theme.secondary }]}>Soporte y Seguridad</Text>
+          <Text style={[styles.supportText, { color: theme.placeholder }]}>
             Reporta un problema con un artículo, solicita ayuda con una transacción
             o contacta directamente con nuestro equipo de soporte técnico 24/7.
           </Text>
@@ -98,8 +101,8 @@ export default function AyudaScreen({ navigation }) {
             onPress={() => Linking.openURL('mailto:soporteSubastUp@gmail.com')}
             activeOpacity={0.7}
           >
-            <Ionicons name="mail-outline" size={18} color="#1A1A1A" />
-            <Text style={styles.emailText}>soporteSubastUp@gmail.com</Text>
+            <Ionicons name="mail-outline" size={18} color={theme.secondary} />
+            <Text style={[styles.emailText, { color: theme.secondary }]}>soporteSubastUp@gmail.com</Text>
           </TouchableOpacity>
         </View>
 
@@ -111,18 +114,23 @@ export default function AyudaScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#EFEFEF' },
 
-  header: {
+  topBar: {
+    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    borderBottomColor: '#F0E8E0',
+    elevation: 3,
+    shadowColor: '#8b0000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
   },
-  backBtn:     { width: 32 },
-  headerTitle: { fontSize: 18, fontWeight: '600', color: '#1A1A1A' },
+  backBtn:     { padding: 4 },
+  topBarTitle: { fontSize: 18, fontWeight: '800', color: '#1A1A1A', letterSpacing: 0.3 },
 
   scroll: { padding: 16 },
 

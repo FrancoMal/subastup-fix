@@ -11,9 +11,11 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppTheme } from '../../context/ThemeContext';
 
 // ─── Componente de campo (vista + edición unificados) ────────────────────────
 const Campo = ({ label, value, onChange, editing, censurable, secureEntry, bloqueado, keyboardType }) => {
+  const { theme } = useAppTheme();
   const [visible, setVisible] = useState(!secureEntry);
 
   const censurar = (texto) => {
@@ -25,11 +27,11 @@ const Campo = ({ label, value, onChange, editing, censurable, secureEntry, bloqu
 
   return (
     <View style={styles.campoContainer}>
-      <Text style={styles.campoLabel}>{label}</Text>
+      <Text style={[styles.campoLabel, { color: theme.secondary }]}>{label}</Text>
       <View style={[styles.campoFila, editing && !bloqueado && styles.campoFilaActiva]}>
         {editing && !bloqueado ? (
           <TextInput
-            style={styles.campoInput}
+            style={[styles.campoInput, { color: theme.secondary }]}
             value={value}
             onChangeText={onChange}
             keyboardType={keyboardType ?? 'default'}
@@ -39,7 +41,7 @@ const Campo = ({ label, value, onChange, editing, censurable, secureEntry, bloqu
             placeholderTextColor="#BDBDBD"
           />
         ) : (
-          <Text style={[styles.campoValor, bloqueado && styles.campoValorBloqueado]} numberOfLines={1}>
+          <Text style={[styles.campoValor, { color: theme.secondary }, bloqueado && styles.campoValorBloqueado]} numberOfLines={1}>
             {valorMostrado}
           </Text>
         )}
@@ -56,13 +58,14 @@ const Campo = ({ label, value, onChange, editing, censurable, secureEntry, bloqu
           </TouchableOpacity>
         )}
       </View>
-      <View style={styles.separador} />
+      <View style={[styles.separador, { backgroundColor: theme.border }]} />
     </View>
   );
 };
 
 // ─── Pantalla principal ──────────────────────────────────────────────────────
 export default function MiCuentaScreen({ navigation }) {
+  const { theme, isDark } = useAppTheme();
   // En Avance 03: reemplazar con useAuthStore()
   const usuarioInicial = {
     nombre: 'Juan Perez',
@@ -117,16 +120,16 @@ export default function MiCuentaScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.white }]}>
       {/* ── Top Bar ─────────────────────────────── */}
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { backgroundColor: theme.white, borderBottomColor: theme.border }]}>
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => navigation?.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
+          <Ionicons name="chevron-back" size={26} color="#1a1a1a" />
         </TouchableOpacity>
-        <Text style={styles.topBarTitle}>Mi cuenta</Text>
+        <Text style={[styles.topBarTitle, { color: theme.secondary }]}>Mi cuenta</Text>
         <View style={{ width: 32 }} />
       </View>
 
@@ -165,7 +168,7 @@ export default function MiCuentaScreen({ navigation }) {
             autoCorrect={false}
           />
         ) : (
-          <Text style={styles.nombre}>{form.nombre}</Text>
+          <Text style={[styles.nombre, { color: theme.secondary }]}>{form.nombre}</Text>
         )}
 
         {/* ── Campos ──────────────────────────────── */}
@@ -239,25 +242,22 @@ const styles = StyleSheet.create({
 
   // Top Bar
   topBar: {
+    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
     backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0E8E0',
+    elevation: 3,
+    shadowColor: '#8b0000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
   },
-  backBtn: {
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-  },
-  topBarTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#1A1A1A',
-    letterSpacing: 0.2,
-  },
+  backBtn:     { padding: 4 },
+  topBarTitle: { fontSize: 18, fontWeight: '800', color: '#1A1A1A', letterSpacing: 0.3 },
 
   // Scroll
   scroll: {

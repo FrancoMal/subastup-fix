@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppTheme } from '../../context/ThemeContext';
 
 const LOGO = require('../../assets/images/texto_appbar.jpeg');
 const { width } = Dimensions.get('window');
@@ -41,6 +42,7 @@ const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto'
 const DIAS_SEMANA = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 
 export default function CalendarScreen({ navigation }) {
+  const { theme, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const hoy    = new Date();
 
@@ -102,7 +104,7 @@ export default function CalendarScreen({ navigation }) {
   const tieneSubasta = (dia) => diasConSubasta.includes(dia);
 
   const renderSubasta = ({ item }) => (
-    <View style={styles.subastaCard}>
+    <View style={[styles.subastaCard, { backgroundColor: theme.background }]}>
       {/* Imagen */}
       {item.imagen
         ? <Image source={{ uri: item.imagen }} style={styles.subastaImg} resizeMode="cover" />
@@ -111,7 +113,7 @@ export default function CalendarScreen({ navigation }) {
 
       {/* Info */}
       <View style={styles.subastaInfo}>
-        <Text style={styles.subastaTitulo} numberOfLines={1}>{item.titulo}</Text>
+        <Text style={[styles.subastaTitulo, { color: theme.secondary }]} numberOfLines={1}>{item.titulo}</Text>
         <Text style={styles.subastaDetalle}>{item.moneda}  ${item.precioBase.toLocaleString()}</Text>
         <Text style={styles.subastaHora}>{item.hora}hs</Text>
       </View>
@@ -128,33 +130,33 @@ export default function CalendarScreen({ navigation }) {
   );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.white }]}>
 
       {/* ── Top Bar ── */}
-      <View style={styles.topBar}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={26} color="#1A1A1A" />
+      <View style={[styles.topBar, { backgroundColor: theme.white, borderBottomColor: theme.border }]}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation?.goBack()}>
+          <Ionicons name="chevron-back" size={26} color="#1a1a1a" />
         </TouchableOpacity>
-        <Image source={LOGO} style={styles.logo} resizeMode="contain" />
-        <View style={styles.backBtn} />
+        <Text style={[styles.topBarTitle, { color: theme.secondary }]}>Calendario</Text>
+        <View style={{ width: 32 }} />
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
         {/* ── Calendario ── */}
-        <View style={styles.calCard}>
+        <View style={[styles.calCard, { backgroundColor: theme.background }]}>
 
           {/* Navegación mes */}
           <View style={styles.navRow}>
             <TouchableOpacity onPress={() => cambiarMes(-1)} style={styles.navBtn}>
-              <Ionicons name="chevron-back" size={20} color="#1A1A1A" />
+              <Ionicons name="chevron-back" size={20} color={theme.secondary} />
             </TouchableOpacity>
 
-            <Text style={styles.navMes}>{MESES[mes]}</Text>
-            <Text style={styles.navAnio}>{anio}</Text>
+            <Text style={[styles.navMes, { color: theme.secondary }]}>{MESES[mes]}</Text>
+            <Text style={[styles.navAnio, { color: theme.placeholder }]}>{anio}</Text>
 
             <TouchableOpacity onPress={() => cambiarMes(1)} style={styles.navBtn}>
-              <Ionicons name="chevron-forward" size={20} color="#1A1A1A" />
+              <Ionicons name="chevron-forward" size={20} color={theme.secondary} />
             </TouchableOpacity>
           </View>
 
@@ -201,7 +203,7 @@ export default function CalendarScreen({ navigation }) {
         </View>
 
         {/* ── Lista subastas ── */}
-        <Text style={styles.seccionTitulo}>
+        <Text style={[styles.seccionTitulo, { color: theme.secondary }]}>
           {diaSeleccionado
             ? `Subastas del ${diaSeleccionado} de ${MESES[mes]}`
             : 'Subastas este mes'
@@ -237,13 +239,19 @@ const styles = StyleSheet.create({
     height: 56,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: '#F0E8E0',
+    elevation: 3,
+    shadowColor: '#8b0000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
   },
-  backBtn: { width: 36, alignItems: 'flex-start' },
-  logo:    { flex: 1, height: 32 },
+  backBtn:     { padding: 4 },
+  topBarTitle: { fontSize: 18, fontWeight: '800', color: '#1A1A1A', letterSpacing: 0.3 },
 
   // Calendario
   calCard: {

@@ -32,11 +32,12 @@ import Svg, {
   ClipPath,
   Rect,
 } from 'react-native-svg';
+import { COLORS } from '../constants/colors';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CHART_WIDTH = SCREEN_WIDTH - 48; // padding horizontal 24 * 2
-const ACCENT = '#FF6B00';
-const ACCENT2 = '#FF9F45';
+const ACCENT  = COLORS.primary;
+const ACCENT2 = COLORS.primary;
 const BLUE = '#3B82F6';
 const GREEN = '#22C55E';
 const RED = '#EF4444';
@@ -83,6 +84,7 @@ const fmtMonto = (n) => {
  * useRealtimeData
  * En producción, reemplazá fetchFn por tu llamada real a la API.
  * El hook re-fetcha cada `intervalMs` milisegundos.
+ * @deprecated - usar useFocusEffect en su lugar
  */
 export function useRealtimeData(fetchFn, intervalMs = 15000) {
   const [data, setData] = useState(null);
@@ -124,7 +126,6 @@ export const fetchEvolucionMock = async () => {
 export const fetchDistribucionMock = async () => ({
   ganadas: 3 + Math.floor(Math.random() * 2),
   perdidas: 8 + Math.floor(Math.random() * 3),
-  activas: 4 + Math.floor(Math.random() * 2),
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -217,7 +218,7 @@ export function GraficoEvolucion({ data, loading = false }) {
               style={[styles.pillBtn, metrica === m && { backgroundColor: color }]}
               onPress={() => setMetrica(m)}
             >
-              <Text style={[styles.pillText, metrica === m && { color: '#fff' }]}>
+              <Text style={[styles.pillText, metrica === m && { color: COLORS.white }]}>
                 {m === 'gasto' ? 'Gasto' : 'Pujas'}
               </Text>
             </TouchableOpacity>
@@ -292,7 +293,7 @@ export function GraficoEvolucion({ data, loading = false }) {
               {p.label}
             </SvgText>
             {i <= cutIdx && (
-              <Circle cx={p.x} cy={p.y} r="3.5" fill={color} stroke="#fff" strokeWidth="1.5" />
+              <Circle cx={p.x} cy={p.y} r="3.5" fill={color} stroke={COLORS.white} strokeWidth="1.5" />
             )}
           </G>
         ))}
@@ -323,49 +324,21 @@ export function GraficoEvolucion({ data, loading = false }) {
  *   ganadas, perdidas, activas  → números
  *   loading → bool
  */
-export function GraficoDistribucion({ ganadas = 0, perdidas = 0, activas = 0, loading = false }) {
-  const animRef = useRef(new Animated.Value(0)).current;
-  const [animVal, setAnimVal] = useState(0);
-
-  useEffect(() => {
-    animRef.setValue(0);
-    setAnimVal(0);
-    Animated.timing(animRef, {
-      toValue: 1,
-      duration: 900,
-      useNativeDriver: false,
-    }).start();
-    const l = animRef.addListener(({ value }) => setAnimVal(value));
-    return () => animRef.removeListener(l);
-  }, [ganadas, perdidas, activas]);
-
+export function GraficoDistribucion({ ganadas = 0, perdidas = 0, loading = false }) {
   if (loading) return <SkeletonCard height={200} />;
 
-  const total = ganadas + perdidas + activas || 1;
+  const total = ganadas + perdidas || 1;
   const segmentos = [
-    { label: 'Ganadas', valor: ganadas, color: GREEN },
-    { label: 'Perdidas', valor: perdidas, color: RED },
-    { label: 'Activas', valor: activas, color: BLUE },
+    { label: 'Ganadas',  valor: ganadas,  color: COLORS.success },
+    { label: 'Perdidas', valor: perdidas, color: COLORS.primary },
   ];
 
-  const R = 68;
-  const cx = 90;
-  const cy = 90;
-  const strokeW = 22;
-  const circunferencia = 2 * Math.PI * R;
-
-  // Calculamos los arcos
-  let acumulado = 0;
-  const arcos = segmentos.map((s) => {
-    const fraccion = s.valor / total;
-    const offset = circunferencia * (1 - acumulado * animVal);
-    const dashArray = `${circunferencia * fraccion * animVal} ${circunferencia}`;
-    const arc = { ...s, fraccion, dashArray, dashOffset: offset };
-    acumulado += fraccion;
-    return arc;
-  });
-
-  const ganPct = Math.round((ganadas / total) * 100);
+  const circunferencia     = 2 * Math.PI * 45;
+  const porcentajeGanadas  = total > 0 ? ganadas  / total : 0;
+  const porcentajePerdidas = total > 0 ? perdidas / total : 0;
+  const dashGanadas        = porcentajeGanadas  * circunferencia;
+  const dashPerdidas       = porcentajePerdidas * circunferencia;
+  const ganPct             = Math.round(porcentajeGanadas * 100);
 
   return (
     <View style={styles.card}>
@@ -373,38 +346,45 @@ export function GraficoDistribucion({ ganadas = 0, perdidas = 0, activas = 0, lo
 
       <View style={styles.donutRow}>
         {/* Donut */}
-        <Svg width={180} height={180}>
-          {/* Base gris */}
+        <Svg width={120} height={120} viewBox="0 0 120 120">
+          {/* Fondo gris */}
           <Circle
-            cx={cx}
-            cy={cy}
-            r={R}
+            cx={60} cy={60} r={45}
             fill="none"
-            stroke={BORDER}
-            strokeWidth={strokeW}
+            stroke="#F0F0F0"
+            strokeWidth={18}
           />
-          {/* Segmentos animados */}
-          {arcos.map((a, i) => (
+          {/* Segmento ganadas */}
+          {dashGanadas > 0 && (
             <Circle
-              key={i}
-              cx={cx}
-              cy={cy}
-              r={R}
+              cx={60} cy={60} r={45}
               fill="none"
-              stroke={a.color}
-              strokeWidth={strokeW}
-              strokeDasharray={a.dashArray}
-              strokeDashoffset={a.dashOffset}
-              strokeLinecap="butt"
-              rotation="-90"
-              origin={`${cx}, ${cy}`}
+              stroke={COLORS.success}
+              strokeWidth={18}
+              strokeDasharray={`${dashGanadas} ${circunferencia}`}
+              strokeDashoffset={circunferencia / 4}
+              rotation={-90}
+              origin="60, 60"
             />
-          ))}
+          )}
+          {/* Segmento perdidas */}
+          {dashPerdidas > 0 && (
+            <Circle
+              cx={60} cy={60} r={45}
+              fill="none"
+              stroke={COLORS.primary}
+              strokeWidth={18}
+              strokeDasharray={`${dashPerdidas} ${circunferencia}`}
+              strokeDashoffset={circunferencia / 4 - dashGanadas}
+              rotation={-90}
+              origin="60, 60"
+            />
+          )}
           {/* Centro: porcentaje ganadas */}
-          <SvgText x={cx} y={cy - 8} textAnchor="middle" fontSize="22" fontWeight="bold" fill={TEXT_PRIMARY_SYM}>
+          <SvgText x={60} y={55} textAnchor="middle" fontSize="18" fontWeight="bold" fill={TEXT_PRIMARY_SYM}>
             {ganPct}%
           </SvgText>
-          <SvgText x={cx} y={cy + 12} textAnchor="middle" fontSize="10" fill={GRAY}>
+          <SvgText x={60} y={70} textAnchor="middle" fontSize="9" fill={GRAY}>
             ganadas
           </SvgText>
         </Svg>
@@ -513,7 +493,6 @@ export default function EstadisticasSection() {
       <GraficoDistribucion
         ganadas={distData?.ganadas}
         perdidas={distData?.perdidas}
-        activas={distData?.activas}
         loading={!distData}
       />
     </View>
@@ -599,7 +578,7 @@ const styles = StyleSheet.create({
     borderColor: BORDER,
   },
   periodoBtnActive: {
-    backgroundColor: '#FFF0E6',
+    backgroundColor: '#FFF5F5',
     borderColor: ACCENT,
   },
   periodoText: {

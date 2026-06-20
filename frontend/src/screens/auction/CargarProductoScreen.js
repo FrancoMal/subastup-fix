@@ -248,7 +248,7 @@ export default function CargarBienScreen({ navigation }) {
           style={styles.backBtn}
           onPress={step === 2 ? goToStep1 : () => navigation?.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
+          <Ionicons name="chevron-back" size={26} color="#1a1a1a" />
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>Cargar Bien</Text>
         <View style={{ width: 32 }} />

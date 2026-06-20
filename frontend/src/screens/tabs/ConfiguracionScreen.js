@@ -13,6 +13,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import useAuthStore from '../../store/authStore';
+import useSettingsStore from '../../store/settingsStore';
+import { DARK_COLORS, COLORS } from '../../constants/colors';
+import { useAppTheme } from '../../context/ThemeContext';
 
 const USER_AVATAR = require('../../assets/images/avatar.jpeg'); // reemplazá con tu ruta
 
@@ -128,8 +131,20 @@ function GroupDivider() {
 export default function ConfiguracionScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const logout = useAuthStore((state) => state.logout);
-  const [darkTheme,      setDarkTheme]      = useState(true);
-  const [notifEnabled,   setNotifEnabled]   = useState(true);
+  const darkTheme         = useSettingsStore((s) => s.darkTheme);
+  const notificaciones     = useSettingsStore((s) => s.notificaciones);
+  const moneda             = useSettingsStore((s) => s.moneda);
+  const idioma             = useSettingsStore((s) => s.idioma);
+  const setDarkTheme       = useSettingsStore((s) => s.setDarkTheme);
+  const setNotificaciones  = useSettingsStore((s) => s.setNotificaciones);
+  const setMoneda          = useSettingsStore((s) => s.setMoneda);
+  const setIdioma          = useSettingsStore((s) => s.setIdioma);
+  const theme              = darkTheme ? DARK_COLORS : COLORS;
+  const { isDark }         = useAppTheme();
+  const user               = useAuthStore((s) => s.user);
+  const email              = useAuthStore((s) => s.token
+    ? (user?.email ?? 'usuario@subastup.com')
+    : 'usuario@subastup.com');
 
   const handleEliminarCuenta = () => {
     Alert.alert(
@@ -154,19 +169,19 @@ export default function ConfiguracionScreen({ navigation }) {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.white }]}>
 
       {/* ── Top Bar ─────────────────────────────── */}
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation?.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
+          <Ionicons name="chevron-back" size={26} color="#1a1a1a" />
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>Configuracion</Text>
         <View style={{ width: 32 }} />
       </View>
 
       <ScrollView
-        style={styles.scroll}
+        style={[styles.scroll, { backgroundColor: theme.white }]}
         contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
         showsVerticalScrollIndicator={false}
       >
@@ -183,8 +198,8 @@ export default function ConfiguracionScreen({ navigation }) {
               </View>
             </View>
             <View style={styles.heroText}>
-              <Text style={styles.heroName}>Nombre del usuario</Text>
-              <Text style={styles.heroEmail}>usuario@subastup.com</Text>
+              <Text style={styles.heroName}>{user?.name ?? 'Usuario'}</Text>
+              <Text style={styles.heroEmail}>{user?.email ?? email}</Text>
             </View>
             <View style={styles.heroPill}>
               <Ionicons name="star" size={12} color="#8b0000" />
@@ -206,13 +221,13 @@ export default function ConfiguracionScreen({ navigation }) {
           icon="card-outline"
           label="Metodos de pago"
           sublabel="Tarjetas y cuentas vinculadas"
-          onPress={() => console.log('Metodos de pago')} // cambiar cuando este la pantalla de métodos de pago
+          onPress={() => navigation.navigate('MetodosPago')}  // cambiar cuando este la pantalla de métodos de pago
         />
         <ActionCard
           icon="hammer-outline"
           label="Mis subastas"
           sublabel="Historial y activas"
-          onPress={() => console.log('Mis subastas')} // cambiar cuando este la pantalla de mis subastas
+          onPress={() => navigation.navigate('MisSubastas')}  // cambiar cuando este la pantalla de mis subastas
         />
 
         {/* ── Sección: Sistema ─────────────────── */}
@@ -221,7 +236,7 @@ export default function ConfiguracionScreen({ navigation }) {
         <CollapsibleGroup icon="settings-outline" title="Sistema">
           <GroupRow
             icon="moon-outline"
-            label="Tema"
+            label="Modo Oscuro"
             rightElement={
               <Switch
                 value={darkTheme}
@@ -238,8 +253,8 @@ export default function ConfiguracionScreen({ navigation }) {
             label="Notificaciones"
             rightElement={
               <Switch
-                value={notifEnabled}
-                onValueChange={setNotifEnabled}
+                value={notificaciones}
+                onValueChange={setNotificaciones}
                 thumbColor="#FFFFFF"
                 trackColor={{ false: '#D0C0B8', true: '#8b0000' }}
                 ios_backgroundColor="#D0C0B8"
@@ -250,19 +265,27 @@ export default function ConfiguracionScreen({ navigation }) {
           <GroupRow
             icon="cash-outline"
             label="Moneda de preferencia"
-            onPress={() => console.log('Moneda')}
-          />
-          <GroupDivider />
-          <GroupRow
-            icon="language-outline"
-            label="Idioma"
-            onPress={() => console.log('Idioma')}
+            rightElement={<Text style={{ fontSize: 14, color: '#8b0000', fontWeight: '600' }}>{moneda}</Text>}
+            onPress={() =>
+              Alert.alert('Moneda de preferencia', 'Seleccioná tu moneda', [
+                { text: 'ARS — Peso Argentino', onPress: () => setMoneda('ARS') },
+                { text: 'USD — Dólar',          onPress: () => setMoneda('USD') },
+                { text: 'Cancelar', style: 'cancel' },
+              ])
+            }
           />
           <GroupDivider />
           <GroupRow
             icon="shield-checkmark-outline"
             label="Privacidad y seguridad"
-            onPress={() => console.log('Privacidad')}
+            onPress={() =>
+              Alert.alert(
+                'Privacidad y seguridad',
+                'Tus datos están protegidos bajo nuestra política de privacidad. ' +
+                'No compartimos tu información personal con terceros.',
+                [{ text: 'Entendido' }]
+              )
+            }
           />
         </CollapsibleGroup>
 
@@ -306,7 +329,7 @@ export default function ConfiguracionScreen({ navigation }) {
 //  Estilos
 // ─────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' }, // fondo blanco
+  container: { flex: 1, backgroundColor: COLORS.white }, // fondo blanco
 
   // Top bar
   topBar: {

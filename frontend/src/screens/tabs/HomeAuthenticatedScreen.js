@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import useAuthStore from '../../store/authStore';
+import { useAppTheme } from '../../context/ThemeContext';
 
 const LOGO             = require('../../assets/images/texto_appbar.jpeg');
 const IMG_PLACEHOLDER1 = require('../../assets/images/imagen_menu1.jpeg');
@@ -50,6 +51,7 @@ const DRAWER_GROUPS = [
 const NOTIFICATIONS = [];
 
 export default function HomeAuthenticatedScreen({ navigation }) {
+  const { theme, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState(0);
   const logout = useAuthStore((state) => state.logout);
@@ -128,18 +130,18 @@ export default function HomeAuthenticatedScreen({ navigation }) {
   const panelOpacity    = notifAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.white }]}>
 
       {/* ── Header ──────────────────────────────── */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.white, borderBottomColor: theme.border }]}>
         <TouchableOpacity style={styles.headerIcon} onPress={openMenu}>
-          <Ionicons name="menu" size={28} color="#1a1a1a" />
+          <Ionicons name="menu" size={28} color={theme.secondary} />
         </TouchableOpacity>
 
         <Image source={LOGO} style={styles.logo} resizeMode="contain" />
 
         <TouchableOpacity style={styles.headerIcon} onPress={openNotif}>
-          <Ionicons name="notifications-outline" size={26} color="#1a1a1a" />
+          <Ionicons name="notifications-outline" size={26} color={theme.secondary} />
         </TouchableOpacity>
       </View>
 
@@ -149,7 +151,7 @@ export default function HomeAuthenticatedScreen({ navigation }) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.sectionTitle}>Subastas Especiales</Text>
+        <Text style={[styles.sectionTitle, { color: theme.secondary }]}>Subastas Especiales</Text>
         <View style={styles.auctionContainer}>
           <Image source={IMG_PLACEHOLDER1} style={styles.auctionImage} resizeMode="cover" />
           <TouchableOpacity
@@ -160,7 +162,7 @@ export default function HomeAuthenticatedScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.sectionTitle}>Subastas Comunes</Text>
+        <Text style={[styles.sectionTitle, { color: theme.secondary }]}>Subastas Comunes</Text>
         <View style={styles.auctionContainer}>
           <Image source={IMG_PLACEHOLDER2} style={styles.auctionImage} resizeMode="cover" />
           <TouchableOpacity
@@ -214,6 +216,7 @@ export default function HomeAuthenticatedScreen({ navigation }) {
                   { translateY: panelTranslateY },
                   { scale: panelScale },
                 ],
+                backgroundColor: theme.surface,
               },
             ]}
           >
@@ -223,19 +226,19 @@ export default function HomeAuthenticatedScreen({ navigation }) {
               onPress={() => setNotifsExpanded(v => !v)}
               activeOpacity={0.7}
             >
-              <Ionicons name="notifications-outline" size={20} color="#1a1a1a" style={{ marginRight: 8 }} />
-              <Text style={styles.notifSectionTitle}>Notificaciones</Text>
+              <Ionicons name="notifications-outline" size={20} color={theme.secondary} style={{ marginRight: 8 }} />
+              <Text style={[styles.notifSectionTitle, { color: theme.secondary }]}>Notificaciones</Text>
               <Ionicons
                 name={notifsExpanded ? 'chevron-up' : 'chevron-down'}
                 size={18}
-                color="#1a1a1a"
+                color={theme.secondary}
               />
             </TouchableOpacity>
 
             {notifsExpanded && (
-              <View style={styles.notifContent}>
+              <View style={[styles.notifContent, { backgroundColor: theme.background }]}>
                 {NOTIFICATIONS.length === 0 ? (
-                  <Text style={styles.notifEmpty}>{'<<No hay notificaciones>>'}</Text>
+                  <Text style={[styles.notifEmpty, { color: theme.placeholder }]}>{'<<No hay notificaciones>>'}</Text>
                 ) : (
                   NOTIFICATIONS.map((n, i) => (
                     <Text key={i} style={styles.notifItem}>{n}</Text>
@@ -245,7 +248,7 @@ export default function HomeAuthenticatedScreen({ navigation }) {
             )}
 
             {/* Separador */}
-            <View style={styles.notifDivider} />
+            <View style={[styles.notifDivider, { backgroundColor: theme.border }]} />
 
             {/* ── Sección Configuracion ── */}
             <TouchableOpacity
@@ -253,20 +256,20 @@ export default function HomeAuthenticatedScreen({ navigation }) {
               onPress={() => setConfigExpanded(v => !v)}
               activeOpacity={0.7}
             >
-              <Ionicons name="settings-outline" size={20} color="#1a1a1a" style={{ marginRight: 8 }} />
-              <Text style={styles.notifSectionTitle}>Configuracion</Text>
+              <Ionicons name="settings-outline" size={20} color={theme.secondary} style={{ marginRight: 8 }} />
+              <Text style={[styles.notifSectionTitle, { color: theme.secondary }]}>Configuracion</Text>
               <Ionicons
                 name={configExpanded ? 'chevron-up' : 'chevron-down'}
                 size={18}
-                color="#1a1a1a"
+                color={theme.secondary}
               />
             </TouchableOpacity>
 
             {configExpanded && (
               <View style={styles.configContent}>
                 <View style={styles.themeRow}>
-                  <Ionicons name="moon-outline" size={20} color="#1a1a1a" style={{ marginRight: 10 }} />
-                  <Text style={styles.themeLabel}>Tema</Text>
+                  <Ionicons name="moon-outline" size={20} color={theme.secondary} style={{ marginRight: 10 }} />
+                  <Text style={[styles.themeLabel, { color: theme.secondary }]}>Tema</Text>
                   <Switch
                     value={darkTheme}
                     onValueChange={setDarkTheme}
@@ -297,22 +300,23 @@ export default function HomeAuthenticatedScreen({ navigation }) {
             paddingTop: insets.top + 12,
             paddingBottom: insets.bottom + 16,
             transform: [{ translateX }],
+            backgroundColor: theme.surface,
           },
         ]}
       >
         <TouchableOpacity style={styles.closeBtn} onPress={closeMenu}>
-          <Ionicons name="chevron-back" size={22} color="#1a1a1a" />
+          <Ionicons name="chevron-back" size={22} color={theme.secondary} />
         </TouchableOpacity>
 
         <View style={styles.profileSection}>
           <Image source={USER_AVATAR} style={styles.avatar} />
-          <Text style={styles.userName}>Nombre del usuario</Text>
+          <Text style={[styles.userName, { color: theme.secondary }]}>Nombre del usuario</Text>
         </View>
 
         <ScrollView style={styles.drawerScroll} showsVerticalScrollIndicator={false}>
           {DRAWER_GROUPS.map((group, gi) => (
             <View key={gi}>
-              {gi > 0 && <View style={styles.separator} />}
+              {gi > 0 && <View style={[styles.separator, { backgroundColor: theme.border }]} />}
               {group.map((item, ii) => (
                 <TouchableOpacity
                   key={ii}
@@ -320,8 +324,8 @@ export default function HomeAuthenticatedScreen({ navigation }) {
                   onPress={() => handleItemPress(item)}
                   activeOpacity={0.6}
                 >
-                  <Ionicons name={item.icon} size={22} color="#1a1a1a" style={styles.drawerItemIcon} />
-                  <Text style={styles.drawerItemLabel}>{item.label}</Text>
+                  <Ionicons name={item.icon} size={22} color={theme.secondary} style={styles.drawerItemIcon} />
+                  <Text style={[styles.drawerItemLabel, { color: theme.secondary }]}>{item.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>

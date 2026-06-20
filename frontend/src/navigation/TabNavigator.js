@@ -3,6 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAppTheme } from '../context/ThemeContext';
 
 import HomeScreen           from '../screens/tabs/HomeAuthenticatedScreen';
 import ChatsScreen          from '../screens/chat/ChatsScreen';
@@ -19,6 +20,7 @@ const TABS_CONFIG = [
 ];
 
 const CustomTabBar = ({ state, descriptors, navigation }) => {
+  const { theme, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
 
   // Ocultar tab bar en la pantalla Publicar
@@ -26,7 +28,10 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
   if (activeRoute.name === 'Publicar') return null;
 
   return (
-    <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 4) }]}>
+    <View style={[
+      styles.bottomNav,
+      { paddingBottom: Math.max(insets.bottom, 4), backgroundColor: isDark ? theme.surface : '#FFF5EC' }
+    ]}>
       {state.routes.map((route, i) => {
         const isFocused  = state.index === i;
         const tabConfig  = TABS_CONFIG.find(t => t.name === route.name);
