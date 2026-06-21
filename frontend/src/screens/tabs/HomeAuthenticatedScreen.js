@@ -103,7 +103,7 @@ export default function HomeAuthenticatedScreen({ navigation }) {
     if (TABS.includes(item.nav)) {
       navigation.navigate(item.nav);
     } else {
-      navigation.getParent()?.navigate(item.nav, item.navParams);
+      navigation.navigate(item.nav, item.navParams);
     }
   };
 
@@ -156,7 +156,7 @@ export default function HomeAuthenticatedScreen({ navigation }) {
           <Image source={IMG_PLACEHOLDER1} style={styles.auctionImage} resizeMode="cover" />
           <TouchableOpacity
             style={styles.verMasButton}
-            onPress={() => navigation.getParent()?.navigate('PujarAuth', { auctionType: 'especial' })}
+            onPress={() => navigation.navigate('PujarAuth', { auctionType: 'especial' })}
           >
             <Text style={styles.verMasText}>Ver mas</Text>
           </TouchableOpacity>
@@ -167,7 +167,7 @@ export default function HomeAuthenticatedScreen({ navigation }) {
           <Image source={IMG_PLACEHOLDER2} style={styles.auctionImage} resizeMode="cover" />
           <TouchableOpacity
             style={styles.verMasButton}
-            onPress={() => navigation.getParent()?.navigate('PujarAuth', { auctionType: 'comun' })}
+            onPress={() => navigation.navigate('PujarAuth', { auctionType: 'comun' })}
           >
             <Text style={styles.verMasText}>Ver mas</Text>
           </TouchableOpacity>
@@ -184,7 +184,7 @@ export default function HomeAuthenticatedScreen({ navigation }) {
                 if (TABS.includes(btn.nav)) {
                   navigation.navigate(btn.nav);
                 } else {
-                  navigation.getParent()?.navigate(btn.nav);
+                  navigation.navigate(btn.nav);
                 }
               }}
             >

@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppTheme } from '../../context/ThemeContext';
 
 const LOGO        = require('../../assets/images/texto_appbar.jpeg');
 const USER_AVATAR = require('../../assets/images/avatar.jpeg');
@@ -95,6 +96,7 @@ const PRODUCTOS_MOCK = [
 
 // ─── Pantalla ────────────────────────────────────────────────────────────────
 export default function AuctionListAuthScreen({ navigation, route }) {
+  const { theme, isDark } = useAppTheme();
   const insets      = useSafeAreaInsets();
   const auctionType = route?.params?.auctionType ?? 'comun';
 
@@ -226,7 +228,7 @@ export default function AuctionListAuthScreen({ navigation, route }) {
   //   <Image source={{ uri: item.imagenUrl }} style={styles.cardImage} resizeMode="cover" />
   const renderCard = ({ item, index }) => (
     <TouchableOpacity
-      style={[styles.card, index % 2 === 0 ? { marginRight: 6 } : { marginLeft: 6 }]}
+      style={[styles.card, index % 2 === 0 ? { marginRight: 6 } : { marginLeft: 6 }, { backgroundColor: theme.surface }]}
       activeOpacity={0.85}
       onPress={() => navigation.navigate('AuctionDetailAuth', { productId: item.id })}
     >
@@ -234,47 +236,47 @@ export default function AuctionListAuthScreen({ navigation, route }) {
       <View style={[styles.cardImage, { backgroundColor: item.color }]} />
 
       <View style={styles.badge}>
-        <Text style={styles.badgeText}>{item.moneda}</Text>
+        <Text style={[styles.badgeText, { color: theme.secondary }]}>{item.moneda}</Text>
       </View>
 
       {item.proximamente && (
         <View style={styles.proximamenteOverlay}>
-          <Ionicons name="notifications-outline" size={22} color="#1A1A1A" />
-          <Text style={styles.proximamenteTitulo}>Proximamente</Text>
+          <Ionicons name="notifications-outline" size={22} color={theme.secondary} />
+          <Text style={[styles.proximamenteTitulo, { color: theme.secondary }]}>Proximamente</Text>
           <Text style={styles.proximamenteFecha}>{item.fecha}</Text>
         </View>
       )}
 
-      <View style={styles.cardFooter}>
-        <Text style={styles.cardTitulo} numberOfLines={1}>{item.titulo}</Text>
+      <View style={[styles.cardFooter, { backgroundColor: theme.primary }]}>
+        <Text style={[styles.cardTitulo, { color: theme.white }]} numberOfLines={1}>{item.titulo}</Text>
       </View>
     </TouchableOpacity>
   );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.white }]}>
 
       {/* ── Header autenticado ───────────────────── */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.white }]}>
         <TouchableOpacity style={styles.headerIcon} onPress={openMenu}>
-          <Ionicons name="menu" size={28} color="#1a1a1a" />
+          <Ionicons name="menu" size={28} color={theme.secondary} />
         </TouchableOpacity>
 
         <Image source={LOGO} style={styles.logo} resizeMode="contain" />
 
         <TouchableOpacity style={styles.headerIcon} onPress={openNotif}>
-          <Ionicons name="notifications-outline" size={26} color="#1a1a1a" />
+          <Ionicons name="notifications-outline" size={26} color={theme.secondary} />
         </TouchableOpacity>
       </View>
 
       {/* ── Búsqueda y chips FIJOS ───────────────── */}
-      <View style={styles.fixedHeader}>
-        <View style={styles.searchContainer}>
-          <Ionicons name="search-outline" size={20} color="#9E9E9E" style={styles.searchIcon} />
+      <View style={[styles.fixedHeader, { backgroundColor: theme.white }]}>
+        <View style={[styles.searchContainer, { borderColor: theme.border }]}>
+          <Ionicons name="search-outline" size={20} color={theme.placeholder} style={styles.searchIcon} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: theme.secondary }]}
             placeholder="Buscar"
-            placeholderTextColor="#9E9E9E"
+            placeholderTextColor={theme.placeholder}
             value={search}
             onChangeText={setSearch}
           />
@@ -289,10 +291,10 @@ export default function AuctionListAuthScreen({ navigation, route }) {
           {categorias.map((cat) => (
             <TouchableOpacity
               key={cat}
-              style={[styles.chip, selected === cat && styles.chipSelected]}
+              style={[styles.chip, selected === cat && styles.chipSelected, { borderColor: theme.primary }, selected === cat && { backgroundColor: theme.primary }]}
               onPress={() => setSelected(cat)}
             >
-              <Text style={[styles.chipText, selected === cat && styles.chipTextSelected]}>
+              <Text style={[styles.chipText, selected === cat && styles.chipTextSelected, { color: theme.primary }, selected === cat && { color: theme.white }]}>
                 {cat}
               </Text>
             </TouchableOpacity>
@@ -312,8 +314,8 @@ export default function AuctionListAuthScreen({ navigation, route }) {
         <View style={styles.feedbackContainer}>
           <Ionicons name="wifi-outline" size={40} color="#D0D0D0" />
           <Text style={styles.feedbackText}>{error}</Text>
-          <TouchableOpacity style={styles.reintentarBtn} onPress={cargarProductos}>
-            <Text style={styles.reintentarText}>Reintentar</Text>
+          <TouchableOpacity style={[styles.reintentarBtn, { backgroundColor: theme.primary }]} onPress={cargarProductos}>
+            <Text style={[styles.reintentarText, { color: theme.white }]}>Reintentar</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -351,9 +353,9 @@ export default function AuctionListAuthScreen({ navigation, route }) {
               <Ionicons
                 name={tab.icon}
                 size={26}
-                color={isActive ? '#8b0000' : '#9E9E9E'}
+                color={isActive ? theme.primary : theme.placeholder}
               />
-              <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
+              <Text style={[styles.tabLabel, { color: theme.placeholder }, isActive && styles.tabLabelActive, isActive && { color: theme.primary }]}>
                 {tab.label}
               </Text>
             </TouchableOpacity>
@@ -386,9 +388,9 @@ export default function AuctionListAuthScreen({ navigation, route }) {
               onPress={() => setNotifsExpanded(v => !v)}
               activeOpacity={0.7}
             >
-              <Ionicons name="notifications-outline" size={20} color="#1a1a1a" style={{ marginRight: 8 }} />
-              <Text style={styles.notifSectionTitle}>Notificaciones</Text>
-              <Ionicons name={notifsExpanded ? 'chevron-up' : 'chevron-down'} size={18} color="#1a1a1a" />
+              <Ionicons name="notifications-outline" size={20} color={theme.secondary} style={{ marginRight: 8 }} />
+              <Text style={[styles.notifSectionTitle, { color: theme.secondary }]}>Notificaciones</Text>
+              <Ionicons name={notifsExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={theme.secondary} />
             </TouchableOpacity>
 
             {notifsExpanded && (
@@ -396,7 +398,7 @@ export default function AuctionListAuthScreen({ navigation, route }) {
                 {NOTIFICATIONS.length === 0 ? (
                   <Text style={styles.notifEmpty}>{'<<No hay notificaciones>>'}</Text>
                 ) : (
-                  NOTIFICATIONS.map((n, i) => <Text key={i} style={styles.notifItem}>{n}</Text>)
+                  NOTIFICATIONS.map((n, i) => <Text key={i} style={[styles.notifItem, { color: theme.secondary }]}>{n}</Text>)
                 )}
               </View>
             )}
@@ -409,21 +411,21 @@ export default function AuctionListAuthScreen({ navigation, route }) {
               onPress={() => setConfigExpanded(v => !v)}
               activeOpacity={0.7}
             >
-              <Ionicons name="settings-outline" size={20} color="#1a1a1a" style={{ marginRight: 8 }} />
-              <Text style={styles.notifSectionTitle}>Configuracion</Text>
-              <Ionicons name={configExpanded ? 'chevron-up' : 'chevron-down'} size={18} color="#1a1a1a" />
+              <Ionicons name="settings-outline" size={20} color={theme.secondary} style={{ marginRight: 8 }} />
+              <Text style={[styles.notifSectionTitle, { color: theme.secondary }]}>Configuracion</Text>
+              <Ionicons name={configExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={theme.secondary} />
             </TouchableOpacity>
 
             {configExpanded && (
               <View style={styles.configContent}>
                 <View style={styles.themeRow}>
-                  <Ionicons name="moon-outline" size={20} color="#1a1a1a" style={{ marginRight: 10 }} />
-                  <Text style={styles.themeLabel}>Tema</Text>
+                  <Ionicons name="moon-outline" size={20} color={theme.secondary} style={{ marginRight: 10 }} />
+                  <Text style={[styles.themeLabel, { color: theme.secondary }]}>Tema</Text>
                   <Switch
                     value={darkTheme}
                     onValueChange={setDarkTheme}
-                    thumbColor="#FFFFFF"
-                    trackColor={{ false: '#C0B0A8', true: '#8b0000' }}
+                    thumbColor={theme.white}
+                    trackColor={{ false: '#C0B0A8', true: theme.primary }}
                     style={{ marginLeft: 'auto' }}
                   />
                 </View>
@@ -453,12 +455,12 @@ export default function AuctionListAuthScreen({ navigation, route }) {
         ]}
       >
         <TouchableOpacity style={styles.closeBtn} onPress={closeMenu}>
-          <Ionicons name="chevron-back" size={22} color="#1a1a1a" />
+          <Ionicons name="chevron-back" size={22} color={theme.secondary} />
         </TouchableOpacity>
 
         <View style={styles.profileSection}>
           <Image source={USER_AVATAR} style={styles.avatar} />
-          <Text style={styles.userName}>Nombre del usuario</Text>
+          <Text style={[styles.userName, { color: theme.secondary }]}>Nombre del usuario</Text>
         </View>
 
         <ScrollView style={styles.drawerScroll} showsVerticalScrollIndicator={false}>
@@ -472,8 +474,8 @@ export default function AuctionListAuthScreen({ navigation, route }) {
                   onPress={() => handleItemPress(item)}
                   activeOpacity={0.6}
                 >
-                  <Ionicons name={item.icon} size={22} color="#1a1a1a" style={styles.drawerItemIcon} />
-                  <Text style={styles.drawerItemLabel}>{item.label}</Text>
+                  <Ionicons name={item.icon} size={22} color={theme.secondary} style={styles.drawerItemIcon} />
+                  <Text style={[styles.drawerItemLabel, { color: theme.secondary }]}>{item.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>

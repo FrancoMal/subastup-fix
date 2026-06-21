@@ -1,15 +1,20 @@
 // controllers/authController.js
-// Autenticación completa con Prisma + PostgreSQL
+// Autenticación completa — Prisma + PostgreSQL
 
 require('dotenv').config();
-const bcrypt     = require('bcryptjs');
-const jwt        = require('jsonwebtoken');
-const prisma     = require('../config/prisma');
+const bcrypt = require('bcryptjs');
+const jwt    = require('jsonwebtoken');
+const prisma = require('../config/prisma');
 
-const { enviarResetPassword } = require('../services/mailService');
+const {
+  enviarResetPassword,
+  enviarAprobacion,
+  enviarRechazo,
+} = require('../services/mailService');
 
 // ── Helpers ───────────────────────────────────────────────────
-const generateCode = () =>
+
+const generarCodigo = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
 
 const codeExpiryMs = () =>
@@ -17,6 +22,7 @@ const codeExpiryMs = () =>
 
 // ─────────────────────────────────────────────────────────────
 // POST /api/auth/login
+// Body: { email, password }
 // ─────────────────────────────────────────────────────────────
 exports.login = async (req, res) => {
   try {
@@ -27,11 +33,8 @@ exports.login = async (req, res) => {
 
     // Buscar registro con persona y login incluidos
     const registro = await prisma.registros.findFirst({
-      where: { email: email.toLowerCase().trim() },
-      include: {
-        personas: true,
-        logins:   true,
-      },
+      where:   { email: email.toLowerCase().trim() },
+      include: { personas: true, logins: true },
     });
 
     if (!registro)
@@ -41,15 +44,17 @@ exports.login = async (req, res) => {
     if (registro.estado !== 'aprobado') {
       let message;
       if (registro.estado === 'pendiente')
-        message = 'Tu cuenta aún no fue aprobada por un administrador.';
+        message = 'Tu cuenta aún no fue aprobada por un administrador. Revisá tu correo.';
       else if (registro.estado === 'rechazado')
-        message = `Tu cuenta fue rechazada. Motivo: ${registro.motivoRechazo || 'Sin especificar'}`;
-      else if (registro.estado === 'en pausa')
-        message = 'Tu cuenta está suspendida. Contactá al soporte.';
+        message = `Tu cuenta fue rechazada: ${registro.motivoRechazo || 'Sin motivo especificado'}`;
       else
         message = 'Tu cuenta no está habilitada.';
-      return res.status(403).json({ ok: false, message, estado: registro.estado });
+      return res.status(403).json({ ok: false, message, pendiente: registro.estado === 'pendiente' });
     }
+
+    // Verificar que la persona esté activa
+    if (registro.personas.estado !== 'activo')
+      return res.status(403).json({ ok: false, message: 'Tu cuenta está deshabilitada.' });
 
     const login = registro.logins;
     if (!login)
@@ -57,13 +62,15 @@ exports.login = async (req, res) => {
 
     // Verificar bloqueo
     if (login.bloqueado)
-      return res.status(403).json({ ok: false, message: 'Cuenta bloqueada por múltiples intentos fallidos.' });
+      return res.status(403).json({
+        ok: false,
+        message: 'Tu cuenta está bloqueada por demasiados intentos fallidos. Contactá al soporte.',
+      });
 
     // Verificar contraseña
     const passwordOk = await bcrypt.compare(password, login.passwordHash);
 
     if (!passwordOk) {
-      // Incrementar intentos fallidos
       const nuevosIntentos = login.intentosFallidos + 1;
       await prisma.logins.update({
         where: { registro: registro.identificador },
@@ -72,10 +79,17 @@ exports.login = async (req, res) => {
           bloqueado:        nuevosIntentos >= 5,
         },
       });
+
+      if (nuevosIntentos >= 5)
+        return res.status(403).json({
+          ok: false,
+          message: 'Cuenta bloqueada por demasiados intentos. Contactá al soporte.',
+        });
+
       return res.status(401).json({ ok: false, message: 'Email o contraseña incorrectos.' });
     }
 
-    // Resetear intentos y actualizar último acceso
+    // Login exitoso: resetear intentos y registrar acceso
     await prisma.logins.update({
       where: { registro: registro.identificador },
       data: {
@@ -91,6 +105,8 @@ exports.login = async (req, res) => {
         registroId: registro.identificador,
         personaId:  registro.personas.identificador,
         email:      registro.email,
+        rol:        registro.rol,
+        categoria:  registro.categoria,
       },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
@@ -98,12 +114,15 @@ exports.login = async (req, res) => {
 
     return res.json({
       ok: true,
+      message: 'Login exitoso.',
       token,
       usuario: {
         registroId: registro.identificador,
         nombre:     registro.personas.nombre,
         documento:  registro.personas.documento,
         email:      registro.email,
+        rol:        registro.rol,
+        categoria:  registro.categoria,
       },
     });
 
@@ -115,35 +134,52 @@ exports.login = async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────
 // POST /api/auth/register
+// Body: { nombre, apellido, dni, telefono, email, password,
+//         direccion, numero, ciudad, codigoPostal, pais,
+//         foto1Base64?, foto2Base64? }
 // ─────────────────────────────────────────────────────────────
 exports.register = async (req, res) => {
   try {
     const {
       nombre, apellido, dni, telefono, email, password,
-      direccion, numero, pais, ciudad, codigoPostal,
+      direccion, numero, ciudad, codigoPostal, pais,
       foto1Base64, foto2Base64,
     } = req.body;
 
     if (!nombre || !apellido || !dni || !email || !password)
-      return res.status(400).json({ ok: false, message: 'Faltan campos obligatorios.' });
+      return res.status(400).json({ ok: false, message: 'Faltan datos obligatorios.' });
 
-    // Verificar email duplicado
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email))
+      return res.status(400).json({ ok: false, message: 'El formato del email no es válido.' });
+
+    if (password.length < 6)
+      return res.status(400).json({ ok: false, message: 'La contraseña debe tener al menos 6 caracteres.' });
+
+    // Email duplicado
     const existe = await prisma.registros.findFirst({
       where: { email: email.toLowerCase().trim() },
     });
     if (existe)
       return res.status(409).json({ ok: false, message: 'Ya existe una cuenta con ese email.' });
 
+    // DNI duplicado
+    const dniExiste = await prisma.personas.findFirst({
+      where: { documento: dni.trim() },
+    });
+    if (dniExiste)
+      return res.status(409).json({ ok: false, message: 'Ya existe una cuenta con ese DNI.' });
+
     // Hash de contraseña
     const salt         = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(password, salt);
 
     // Dirección completa
-    const direccionCompleta = [direccion, numero, ciudad, pais, codigoPostal]
+    const direccionCompleta = [direccion, numero, ciudad, codigoPostal, pais]
       .filter(Boolean)
       .join(', ');
 
-    // Transacción: crear persona + registro + login + fotos
+    // Transacción: persona + registro + login + fotosDNI
     const resultado = await prisma.$transaction(async (tx) => {
       // 1. Persona
       const persona = await tx.personas.create({
@@ -152,7 +188,7 @@ exports.register = async (req, res) => {
           nombre:    `${nombre.trim()} ${apellido.trim()}`,
           direccion: direccionCompleta || null,
           estado:    'activo',
-          foto:      foto1Base64 ? Buffer.from(foto1Base64, 'base64') : null,
+          foto:      foto1Base64 ? Buffer.from(foto1Base64.replace(/^data:image\/\w+;base64,/, ''), 'base64') : null,
         },
       });
 
@@ -163,13 +199,14 @@ exports.register = async (req, res) => {
           email:    email.toLowerCase().trim(),
           telefono: telefono?.trim() || null,
           estado:   'pendiente',
+          rol:      'usuario',
         },
       });
 
       // 3. Login
       await tx.logins.create({
         data: {
-          registro:     registro.identificador,
+          registro:         registro.identificador,
           passwordHash,
           salt,
           intentosFallidos: 0,
@@ -183,7 +220,7 @@ exports.register = async (req, res) => {
           data: {
             registro: registro.identificador,
             tipo:     'frente',
-            foto:     Buffer.from(foto1Base64, 'base64'),
+            foto:     Buffer.from(foto1Base64.replace(/^data:image\/\w+;base64,/, ''), 'base64'),
           },
         });
       }
@@ -192,7 +229,7 @@ exports.register = async (req, res) => {
           data: {
             registro: registro.identificador,
             tipo:     'dorso',
-            foto:     Buffer.from(foto2Base64, 'base64'),
+            foto:     Buffer.from(foto2Base64.replace(/^data:image\/\w+;base64,/, ''), 'base64'),
           },
         });
       }
@@ -202,7 +239,7 @@ exports.register = async (req, res) => {
 
     return res.status(201).json({
       ok:         true,
-      message:    'Registro recibido. Un administrador revisará tus datos.',
+      message:    'Registro enviado correctamente. Un administrador revisará tus datos.',
       registroId: resultado.registroId,
     });
 
@@ -214,6 +251,7 @@ exports.register = async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────
 // POST /api/auth/forgot-password
+// Body: { email }
 // ─────────────────────────────────────────────────────────────
 exports.forgotPassword = async (req, res) => {
   try {
@@ -228,18 +266,10 @@ exports.forgotPassword = async (req, res) => {
 
     // Respuesta genérica por seguridad
     if (!registro)
-      return res.json({ ok: true, message: 'Si el mail existe, recibirás el código.' });
+      return res.json({ ok: true, message: 'Si el email existe, recibirás un código de verificación.' });
 
-    if (registro.tokenVerif) {
-      const parts = registro.tokenVerif.split(':');
-      if (parts[0] === 'RESET' && Date.now() - parseInt(parts[2]) < codeExpiryMs()) {
-        await enviarResetPassword(registro.email, parts[1]);
-        return res.json({ ok: true, message: 'Si el mail existe, recibirás el código.' });
-      }
-    }
-
-    const codigo    = generateCode();
-    const timestamp = Date.now();
+    const codigo     = generarCodigo();
+    const timestamp  = Date.now();
     const tokenVerif = `RESET:${codigo}:${timestamp}`;
 
     await prisma.registros.update({
@@ -247,11 +277,14 @@ exports.forgotPassword = async (req, res) => {
       data:  { tokenVerif },
     });
 
-    await enviarResetPassword(registro.email, codigo);
+    try {
+      await enviarResetPassword(registro.email, codigo);
+    } catch (mailErr) {
+      console.error('Error enviando email:', mailErr.message);
+      console.log(`🔑  Código de reset (dev): ${codigo}`);
+    }
 
-    console.log(`🔑  Código de reset (dev): ${codigo}`);
-
-    return res.json({ ok: true, message: 'Si el mail existe, recibirás el código.' });
+    return res.json({ ok: true, message: 'Si el email existe, recibirás un código de verificación.' });
 
   } catch (err) {
     console.error('forgotPassword error:', err);
@@ -261,6 +294,7 @@ exports.forgotPassword = async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────
 // POST /api/auth/verify-code
+// Body: { email, code }
 // ─────────────────────────────────────────────────────────────
 exports.verifyCode = async (req, res) => {
   try {
@@ -279,25 +313,25 @@ exports.verifyCode = async (req, res) => {
     const [prefix, storedCode, timestamp] = registro.tokenVerif.split(':');
 
     if (prefix !== 'RESET' || storedCode !== code.trim())
-      return res.status(400).json({ ok: false, message: 'El código ingresado no es correcto.' });
+      return res.status(400).json({ ok: false, message: 'El código ingresado no es válido.' });
 
     if (Date.now() - parseInt(timestamp) > codeExpiryMs())
       return res.status(400).json({ ok: false, message: 'El código expiró. Solicitá uno nuevo.' });
 
-    // Generar resetToken (JWT de un solo uso, 10 min)
-    const resetToken = jwt.sign(
-      { registroId: registro.identificador, email: registro.email, type: 'reset' },
-      process.env.JWT_SECRET,
-      { expiresIn: '10m' }
-    );
-
-    // Limpiar el token del registro
+    // Limpiar token
     await prisma.registros.update({
       where: { identificador: registro.identificador },
       data:  { tokenVerif: null },
     });
 
-    return res.json({ ok: true, resetToken });
+    // Generar resetToken de un solo uso (válido 10 min)
+    const resetToken = jwt.sign(
+      { registroId: registro.identificador, email: registro.email, action: 'reset-password' },
+      process.env.JWT_SECRET,
+      { expiresIn: '10m' }
+    );
+
+    return res.json({ ok: true, message: 'Código verificado.', resetToken });
 
   } catch (err) {
     console.error('verifyCode error:', err);
@@ -307,6 +341,7 @@ exports.verifyCode = async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────
 // POST /api/auth/reset-password
+// Body: { resetToken, newPassword, confirmPassword }
 // ─────────────────────────────────────────────────────────────
 exports.resetPassword = async (req, res) => {
   try {
@@ -326,11 +361,11 @@ exports.resetPassword = async (req, res) => {
     try {
       decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
     } catch {
-      return res.status(400).json({ ok: false, message: 'Token inválido o expirado.' });
+      return res.status(400).json({ ok: false, message: 'El token expiró o no es válido. Iniciá el proceso de nuevo.' });
     }
 
-    if (decoded.type !== 'reset')
-      return res.status(400).json({ ok: false, message: 'Token inválido.' });
+    if (decoded.action !== 'reset-password')
+      return res.status(400).json({ ok: false, message: 'Token no válido para esta acción.' });
 
     // Nuevo hash
     const salt         = await bcrypt.genSalt(12);
@@ -346,7 +381,7 @@ exports.resetPassword = async (req, res) => {
       },
     });
 
-    return res.json({ ok: true, message: 'Contraseña actualizada correctamente.' });
+    return res.json({ ok: true, message: 'Contraseña actualizada correctamente. Ya podés iniciar sesión.' });
 
   } catch (err) {
     console.error('resetPassword error:', err);
@@ -355,33 +390,81 @@ exports.resetPassword = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// POST /api/auth/validate-user  (ruta protegida — solo admin)
+// POST /api/auth/validate-user  (solo admin)
+// Body: { registroId, aprobar, motivoRechazo? }
 // ─────────────────────────────────────────────────────────────
 exports.validateUser = async (req, res) => {
   try {
     const { registroId, aprobar, motivoRechazo } = req.body;
 
-    if (!registroId)
-      return res.status(400).json({ ok: false, message: 'registroId es requerido.' });
+    if (registroId === undefined || aprobar === undefined)
+      return res.status(400).json({ ok: false, message: 'registroId y aprobar son requeridos.' });
 
     const nuevoEstado = aprobar ? 'aprobado' : 'rechazado';
 
-    await prisma.registros.update({
+    const registro = await prisma.registros.update({
       where: { identificador: parseInt(registroId) },
       data: {
         estado:        nuevoEstado,
-        motivoRechazo: aprobar ? null : (motivoRechazo || 'Sin motivo especificado'),
+        motivoRechazo: aprobar ? null : (motivoRechazo || 'Rechazado por el administrador'),
       },
     });
 
+    // Enviar mail al usuario
+    try {
+      if (aprobar) {
+        await enviarAprobacion(registro.email);
+      } else {
+        await enviarRechazo(registro.email, motivoRechazo || 'Rechazado por el administrador');
+      }
+    } catch (mailErr) {
+      console.error('Error enviando mail:', mailErr.message);
+    }
+
     return res.json({
       ok:      true,
-      message: `Usuario ${nuevoEstado} correctamente.`,
+      message: aprobar ? 'Usuario aprobado.' : 'Usuario rechazado.',
       estado:  nuevoEstado,
     });
 
   } catch (err) {
     console.error('validateUser error:', err);
     return res.status(500).json({ ok: false, message: 'Error interno del servidor.' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// PUT /api/auth/asignar-categoria  (solo revisor/admin)
+// Body: { registroId, categoria }
+// categoria: comun | especial | plata | oro | platino
+// ─────────────────────────────────────────────────────────────
+exports.asignarCategoria = async (req, res) => {
+  try {
+    if (req.user.rol !== 'revisor' && req.user.rol !== 'admin')
+      return res.status(403).json({ ok: false, message: 'Acceso denegado.' });
+
+    const { registroId, categoria } = req.body;
+    const categoriasValidas = ['comun', 'especial', 'plata', 'oro', 'platino'];
+
+    if (!registroId || !categoria)
+      return res.status(400).json({ ok: false, message: 'registroId y categoria son requeridos.' });
+
+    if (!categoriasValidas.includes(categoria))
+      return res.status(400).json({ ok: false, message: 'Categoría inválida.' });
+
+    const registro = await prisma.registros.update({
+      where: { identificador: parseInt(registroId) },
+      data:  { categoria },
+    });
+
+    return res.json({
+      ok:        true,
+      message:   `Categoría actualizada a "${categoria}".`,
+      categoria: registro.categoria,
+    });
+
+  } catch (err) {
+    console.error('asignarCategoria error:', err);
+    return res.status(500).json({ ok: false, message: 'Error al asignar la categoría.' });
   }
 };

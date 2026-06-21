@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../../context/ThemeContext';
+import useAuthStore from '../../store/authStore';
 
 const LOGO = require('../../assets/images/texto_appbar.jpeg');
 const { width } = Dimensions.get('window');
@@ -43,6 +44,7 @@ const DIAS_SEMANA = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 
 export default function CalendarScreen({ navigation }) {
   const { theme, isDark } = useAppTheme();
+  const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
   const insets = useSafeAreaInsets();
   const hoy    = new Date();
 
@@ -118,10 +120,16 @@ export default function CalendarScreen({ navigation }) {
         <Text style={styles.subastaHora}>{item.hora}hs</Text>
       </View>
 
-      {/* Botón Pujar → redirige al login */}
+      {/* Botón Pujar → redirige al login o a la pestaña de pujar */}
       <TouchableOpacity
         style={styles.btnPujar}
-        onPress={() => navigation.navigate('Auth')}
+        onPress={() => {
+          if (isLoggedIn) {
+            navigation.navigate('Main', { screen: 'Pujar' });
+          } else {
+            navigation.navigate('Auth');
+          }
+        }}
         activeOpacity={0.85}
       >
         <Text style={styles.btnPujarText}>Pujar</Text>

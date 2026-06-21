@@ -42,4 +42,21 @@ const enviarRechazo = async (email, motivo) => {
   });
 };
 
-module.exports = { enviarVerificacion, enviarResetPassword, enviarAprobacion, enviarRechazo };
+// @TASK: genérico requerido por productosController.js (notificación a revisores).
+// No tenía export propio en el mailService original.
+const enviarMail = async (to, subject, html) => {
+  await transporter.sendMail({
+    from: '"SubastUp" <noreply@subastup.com>',
+    to,
+    subject,
+    html,
+  });
+};
+
+module.exports = {
+  enviarVerificacion,
+  enviarResetPassword,
+  enviarAprobacion,
+  enviarRechazo,
+  enviarMail,
+};

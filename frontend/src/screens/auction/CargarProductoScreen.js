@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
+import { useAppTheme } from '../../context/ThemeContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const MIN_IMAGES = 6; // mínimo requerido
@@ -26,6 +27,7 @@ const THUMB_SIZE = (SCREEN_WIDTH - 48 - 8 * 2) / 3; // 3 por fila
 //  Indicador de pasos
 // ─────────────────────────────────────────────
 function StepIndicator({ currentStep }) {
+  const { theme } = useAppTheme();
   const steps = [
     { number: 1, label: 'DETALLES' },
     { number: 2, label: 'MEDIA' },
@@ -38,20 +40,20 @@ function StepIndicator({ currentStep }) {
         return (
           <React.Fragment key={step.number}>
             <View style={indicator.stepWrap}>
-              <View style={[indicator.circle, active && indicator.circleActive, done && indicator.circleDone]}>
+              <View style={[indicator.circle, active && indicator.circleActive, done && indicator.circleDone, (active || done) && { backgroundColor: theme.primary, borderColor: theme.primary }]}>
                 {done
-                  ? <Ionicons name="checkmark" size={18} color="#FFFFFF" />
-                  : <Text style={[indicator.circleText, (active || done) && indicator.circleTextActive]}>
+                  ? <Ionicons name="checkmark" size={18} color={theme.white} />
+                  : <Text style={[indicator.circleText, (active || done) && indicator.circleTextActive, (active || done) && { color: theme.white }]}>
                       {step.number}
                     </Text>
                 }
               </View>
-              <Text style={[indicator.label, active && indicator.labelActive]}>
+              <Text style={[indicator.label, active && indicator.labelActive, active && { color: theme.primary }]}>
                 {step.label}
               </Text>
             </View>
             {i < steps.length - 1 && (
-              <View style={[indicator.line, done && indicator.lineDone]} />
+              <View style={[indicator.line, done && indicator.lineDone, done && { backgroundColor: theme.primary }]} />
             )}
           </React.Fragment>
         );
@@ -78,11 +80,12 @@ const indicator = StyleSheet.create({
 //  Campo de texto reutilizable
 // ─────────────────────────────────────────────
 function Field({ label, value, onChangeText, multiline = false, placeholder = '' }) {
+  const { theme } = useAppTheme();
   return (
     <View style={field.wrap}>
-      <Text style={field.label}>{label}</Text>
+      <Text style={[field.label, { color: theme.placeholder }]}>{label}</Text>
       <TextInput
-        style={[field.input, multiline && field.inputMulti]}
+        style={[field.input, multiline && field.inputMulti, { color: theme.secondary }]}
         value={value}
         onChangeText={onChangeText}
         multiline={multiline}
@@ -106,6 +109,7 @@ const field = StyleSheet.create({
 //  Pantalla principal
 // ─────────────────────────────────────────────
 export default function CargarBienScreen({ navigation }) {
+  const { theme, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
 
   const [step,        setStep]        = useState(1);
@@ -240,17 +244,17 @@ export default function CargarBienScreen({ navigation }) {
   //  RENDER
   // ─────────────────────────────────────────────
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.white }]}>
 
       {/* ── Top Bar ─────────────────────────────── */}
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { backgroundColor: theme.white }]}>
         <TouchableOpacity
           style={styles.backBtn}
           onPress={step === 2 ? goToStep1 : () => navigation?.goBack()}
         >
-          <Ionicons name="chevron-back" size={26} color="#1a1a1a" />
+          <Ionicons name="chevron-back" size={26} color={theme.secondary} />
         </TouchableOpacity>
-        <Text style={styles.topBarTitle}>Cargar Bien</Text>
+        <Text style={[styles.topBarTitle, { color: theme.secondary }]}>Cargar Bien</Text>
         <View style={{ width: 32 }} />
       </View>
 
@@ -267,7 +271,7 @@ export default function CargarBienScreen({ navigation }) {
         ══════════════════════════════════════════ */}
         {step === 1 && (
           <View>
-            <Text style={styles.sectionTitle}>Informacion del lote</Text>
+            <Text style={[styles.sectionTitle, { color: theme.secondary }]}>Informacion del lote</Text>
 
             {/* Nombre */}
             <Field
@@ -287,23 +291,23 @@ export default function CargarBienScreen({ navigation }) {
             />
 
             {/* ── Carga de PDF ── */}
-            <Text style={styles.fieldLabel}>Ficha técnica del bien (PDF)</Text>
+            <Text style={[styles.fieldLabel, { color: theme.placeholder }]}>Ficha técnica del bien (PDF)</Text>
 
             {!pdfFile ? (
               <TouchableOpacity style={styles.pdfUploadZone} onPress={handlePickPdf} activeOpacity={0.8}>
                 <View style={styles.pdfIconWrap}>
-                  <Ionicons name="document-attach-outline" size={28} color="#8b0000" />
+                  <Ionicons name="document-attach-outline" size={28} color={theme.primary} />
                 </View>
-                <Text style={styles.pdfUploadTitle}>Adjuntar archivo PDF</Text>
+                <Text style={[styles.pdfUploadTitle, { color: theme.secondary }]}>Adjuntar archivo PDF</Text>
                 <Text style={styles.pdfUploadSub}>Tocá para seleccionar desde tu dispositivo</Text>
               </TouchableOpacity>
             ) : (
               <View style={styles.pdfFileCard}>
                 <View style={styles.pdfFileIconWrap}>
-                  <Ionicons name="document-text" size={26} color="#8b0000" />
+                  <Ionicons name="document-text" size={26} color={theme.primary} />
                 </View>
                 <View style={styles.pdfFileInfo}>
-                  <Text style={styles.pdfFileName} numberOfLines={1}>{pdfFile.name}</Text>
+                  <Text style={[styles.pdfFileName, { color: theme.secondary }]} numberOfLines={1}>{pdfFile.name}</Text>
                   {pdfFile.size ? (
                     <Text style={styles.pdfFileSize}>{formatSize(pdfFile.size)}</Text>
                   ) : null}
@@ -316,7 +320,7 @@ export default function CargarBienScreen({ navigation }) {
 
             {/* Nota informativa sobre el PDF */}
             <View style={styles.pdfHintBox}>
-              <Ionicons name="information-circle-outline" size={16} color="#8b0000" style={{ marginTop: 1 }} />
+              <Ionicons name="information-circle-outline" size={16} color={theme.primary} style={{ marginTop: 1 }} />
               <Text style={styles.pdfHintText}>
                 El PDF debe incluir: descripción detallada del bien, estado de conservación, dimensiones o peso, documentación de origen o autenticidad, y cualquier dato relevante para los postores. Máximo recomendado: 10 MB.
               </Text>
@@ -324,11 +328,11 @@ export default function CargarBienScreen({ navigation }) {
 
             {/* Botón Siguiente */}
             <TouchableOpacity
-              style={[styles.btnPrimary, styles.btnRight]}
+              style={[styles.btnPrimary, styles.btnRight, { backgroundColor: theme.primary }]}
               onPress={goToStep2}
               activeOpacity={0.85}
             >
-              <Text style={styles.btnPrimaryText}>Siguiente  »</Text>
+              <Text style={[styles.btnPrimaryText, { color: theme.white }]}>Siguiente  »</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -340,7 +344,7 @@ export default function CargarBienScreen({ navigation }) {
           <View>
             {/* Título + contador */}
             <View style={styles.mediaTitleRow}>
-              <Text style={styles.sectionTitle}>Galeria de Imagenes</Text>
+              <Text style={[styles.sectionTitle, { color: theme.secondary }]}>Galeria de Imagenes</Text>
               <View style={[
                 styles.counterPill,
                 canFinalize && styles.counterPillOk,
@@ -358,14 +362,14 @@ export default function CargarBienScreen({ navigation }) {
               activeOpacity={0.8}
             >
               <View style={styles.cameraIconWrap}>
-                <Ionicons name="camera-outline" size={30} color="#8b0000" />
+                <Ionicons name="camera-outline" size={30} color={theme.primary} />
               </View>
-              <Text style={styles.uploadTitle}>Subir fotos del bien</Text>
+              <Text style={[styles.uploadTitle, { color: theme.secondary }]}>Subir fotos del bien</Text>
               <Text style={styles.uploadSub}>
                 Mínimo {MIN_IMAGES} fotos · Sin límite máximo
               </Text>
-              <View style={styles.btnPrimary}>
-                <Text style={styles.btnPrimaryText}>Agregar imágenes</Text>
+              <View style={[styles.btnPrimary, { backgroundColor: theme.primary }]}>
+                <Text style={[styles.btnPrimaryText, { color: theme.white }]}>Agregar imágenes</Text>
               </View>
             </TouchableOpacity>
 
@@ -379,7 +383,7 @@ export default function CargarBienScreen({ navigation }) {
                       style={styles.thumbRemove}
                       onPress={() => handleRemoveImage(i)}
                     >
-                      <Ionicons name="close-circle" size={20} color="#8b0000" />
+                      <Ionicons name="close-circle" size={20} color={theme.primary} />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -389,7 +393,7 @@ export default function CargarBienScreen({ navigation }) {
             {/* Aviso si no se llegó al mínimo */}
             {!canFinalize && (
               <View style={styles.warnBox}>
-                <Ionicons name="alert-circle-outline" size={16} color="#8b0000" style={{ marginTop: 1 }} />
+                <Ionicons name="alert-circle-outline" size={16} color={theme.primary} style={{ marginTop: 1 }} />
                 <Text style={styles.warnText}>
                   Necesitás al menos {MIN_IMAGES} fotos para publicar. Llevás {images.length}.
                 </Text>
@@ -401,13 +405,13 @@ export default function CargarBienScreen({ navigation }) {
               style={[
                 styles.btnPrimary,
                 styles.btnRight,
-                { marginTop: 16 },
+                { marginTop: 16, backgroundColor: theme.primary },
                 (!canFinalize || submitting) && styles.btnDisabled,
               ]}
               onPress={canFinalize && !submitting ? handleFinalize : null}
               activeOpacity={canFinalize && !submitting ? 0.85 : 1}
             >
-              <Text style={styles.btnPrimaryText}>
+              <Text style={[styles.btnPrimaryText, { color: theme.white }]}>
                 {submitting ? 'Enviando...' : 'Finalizar'}
               </Text>
             </TouchableOpacity>
@@ -437,16 +441,16 @@ export default function CargarBienScreen({ navigation }) {
                   // ── ERROR ──
                   <>
                     <View style={[styles.checkCircle, { backgroundColor: '#C0392B' }]}>
-                      <Ionicons name="close" size={28} color="#FFFFFF" />
+                      <Ionicons name="close" size={28} color={theme.white} />
                     </View>
-                    <Text style={styles.modalTitle}>Error al enviar</Text>
-                    <Text style={styles.modalMessage}>{submitError}</Text>
+                    <Text style={[styles.modalTitle, { color: theme.secondary }]}>Error al enviar</Text>
+                    <Text style={[styles.modalMessage, { color: theme.placeholder }]}>{submitError}</Text>
                     <TouchableOpacity
                       style={[styles.btnPrimary, { marginTop: 24, alignSelf: 'stretch', backgroundColor: '#C0392B' }]}
                       onPress={closeModal}
                       activeOpacity={0.85}
                     >
-                      <Text style={[styles.btnPrimaryText, { textAlign: 'center' }]}>
+                      <Text style={[styles.btnPrimaryText, { textAlign: 'center', color: theme.white }]}>
                         Cerrar y reintentar
                       </Text>
                     </TouchableOpacity>
@@ -454,19 +458,19 @@ export default function CargarBienScreen({ navigation }) {
                 ) : (
                   // ── ÉXITO ──
                   <>
-                    <View style={styles.checkCircle}>
-                      <Ionicons name="checkmark" size={28} color="#FFFFFF" />
+                    <View style={[styles.checkCircle, { backgroundColor: theme.primary }]}>
+                      <Ionicons name="checkmark" size={28} color={theme.white} />
                     </View>
-                    <Text style={styles.modalTitle}>Guardado y finalizado</Text>
-                    <Text style={styles.modalMessage}>
+                    <Text style={[styles.modalTitle, { color: theme.secondary }]}>Guardado y finalizado</Text>
+                    <Text style={[styles.modalMessage, { color: theme.placeholder }]}>
                       Tu producto fue enviado correctamente y ya está en revisión, te contactaremos pronto.
                     </Text>
                     <TouchableOpacity
-                      style={[styles.btnPrimary, { marginTop: 24, alignSelf: 'stretch' }]}
+                      style={[styles.btnPrimary, { marginTop: 24, alignSelf: 'stretch', backgroundColor: theme.primary }]}
                       onPress={closeModal}
                       activeOpacity={0.85}
                     >
-                      <Text style={[styles.btnPrimaryText, { textAlign: 'center' }]}>
+                      <Text style={[styles.btnPrimaryText, { textAlign: 'center', color: theme.white }]}>
                         Ir al inicio
                       </Text>
                     </TouchableOpacity>
