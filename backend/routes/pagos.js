@@ -16,14 +16,14 @@ const {
 router.use(auth);
 
 // Usuario
-router.get('/',              listarMetodos);
-router.post('/tarjeta',      agregarTarjeta);
-router.post('/banco',        agregarBanco);
-router.post('/cheque',       agregarCheque);
-router.delete('/:id',        eliminarMetodo);
+router.get('/',                          listarMetodos);
+router.post('/card',                     agregarTarjeta);
+router.post('/bank',                     agregarBanco);
+router.post('/check',                    agregarCheque);
+router.delete('/:id',                    eliminarMetodo);
 
 // Revisor / Admin
-router.get('/pendientes-verificacion',  metodosPendientesVerificacion);
-router.put('/:id/verificar',            verificarMetodo);
+router.get('/pending-verification',      metodosPendientesVerificacion);
+router.put('/:id/verify',                verificarMetodo);
 
 module.exports = router;

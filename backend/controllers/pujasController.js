@@ -157,8 +157,8 @@ exports.getEstadoPuja = async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 exports.pujar = async (req, res) => {
   const { personaId } = req.user;
-  const itemId        = parseInt(req.params.itemId);
-  const { importe }   = req.body;
+  const itemId        = parseInt(req.body.auctionId);
+  const importe       = req.body.amount;
 
   if (!importe || isNaN(importe) || parseFloat(importe) <= 0)
     return res.status(400).json({ ok: false, message: 'El importe es inválido.' });

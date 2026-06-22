@@ -11,6 +11,7 @@ const {
   verifyCode,
   resetPassword,
   validateUser,
+  logout,
 } = require('../controllers/authController');
 
 // ── Públicas ──────────────────────────────────────────────────
@@ -23,5 +24,8 @@ router.post('/reset-password',  resetPassword);
 // ── Protegida (solo admin) ────────────────────────────────────
 // En producción agregá un middleware adicional que verifique el rol admin.
 router.post('/validate-user', auth, validateUser);
+
+// ── Protegida (usuario general) ───────────────────────────────
+router.post('/logout', auth, logout);
 
 module.exports = router;

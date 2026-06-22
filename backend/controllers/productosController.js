@@ -236,10 +236,12 @@ exports.responderPropuesta = async (req, res) => {
   try {
     const { personaId } = req.user;
     const id = parseInt(req.params.id);
-    const { acepta } = req.body;
+    const { action, reason } = req.body;
 
-    if (acepta === undefined)
-      return res.status(400).json({ ok: false, message: 'Debés indicar si aceptás o no la propuesta.' });
+    if (action !== 'ACCEPT' && action !== 'REJECT')
+      return res.status(400).json({ ok: false, message: 'La acción debe ser ACCEPT o REJECT.' });
+
+    const acepta = action === 'ACCEPT';
 
     const producto = await prisma.productos.findFirst({
       where:   { identificador: id, duenio: personaId, estado: 'esperando_usuario' },

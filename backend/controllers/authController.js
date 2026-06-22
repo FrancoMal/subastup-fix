@@ -468,3 +468,10 @@ exports.asignarCategoria = async (req, res) => {
     return res.status(500).json({ ok: false, message: 'Error al asignar la categoría.' });
   }
 };
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/auth/logout
+// ─────────────────────────────────────────────────────────────
+exports.logout = async (req, res) => {
+  return res.json({ ok: true, message: 'Sesión cerrada.' });
+};

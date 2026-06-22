@@ -13,10 +13,10 @@ const {
 
 router.use(auth);
 
-router.get('/sin-leer',                     contadorSinLeer);
+router.get('/unread-count',                 contadorSinLeer);
 router.get('/',                             listarConversaciones);
-router.get('/:conversacionId',              getMensajes);
-router.post('/:conversacionId/mensaje',     enviarMensaje);
-router.post('/crear/:productoId',           crearConversacion);
+router.get('/:chatId/messages',             getMensajes);
+router.post('/:chatId/messages',            enviarMensaje);
+router.post('/create/:productId',           crearConversacion);
 
 module.exports = router;

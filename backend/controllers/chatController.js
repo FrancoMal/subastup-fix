@@ -62,13 +62,13 @@ exports.listarConversaciones = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// GET /api/chat/:conversacionId
+// GET /api/chat/:chatId
 // Obtiene los mensajes de una conversación
 // ─────────────────────────────────────────────────────────────
 exports.getMensajes = async (req, res) => {
   try {
     const { personaId }     = req.user;
-    const conversacionId    = parseInt(req.params.conversacionId);
+    const conversacionId    = parseInt(req.params.chatId);
 
     // Verificar que el usuario pertenece a esta conversación
     const conversacion = await prisma.conversaciones.findFirst({
@@ -130,14 +130,14 @@ exports.getMensajes = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// POST /api/chat/:conversacionId/mensaje
+// POST /api/chat/:chatId/mensaje
 // Envía un mensaje en una conversación
 // Body: { texto?, imagenBase64? }
 // ─────────────────────────────────────────────────────────────
 exports.enviarMensaje = async (req, res) => {
   try {
     const { personaId }  = req.user;
-    const conversacionId = parseInt(req.params.conversacionId);
+    const conversacionId = parseInt(req.params.chatId);
     const { texto, imagenBase64 } = req.body;
 
     if (!texto && !imagenBase64)
@@ -204,14 +204,14 @@ exports.enviarMensaje = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// POST /api/chat/crear/:productoId  (solo empleado)
+// POST /api/chat/crear/:productId  (solo empleado)
 // Crea una conversación con el dueño de un producto
 // Body: { texto } → primer mensaje informando el importe
 // ─────────────────────────────────────────────────────────────
 exports.crearConversacion = async (req, res) => {
   try {
     const { personaId, rol } = req.user;
-    const productoId         = parseInt(req.params.productoId);
+    const productoId         = parseInt(req.params.productId);
     const { texto }          = req.body;
 
     if (rol !== 'revisor' && rol !== 'admin')

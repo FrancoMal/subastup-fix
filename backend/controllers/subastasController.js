@@ -293,3 +293,40 @@ exports.linkStream = async (req, res) => {
     return res.status(500).json({ ok: false, message: 'Error al obtener el link de stream.' });
   }
 };
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/auctions
+// Consolidación de buscar, especiales y comunes
+// ─────────────────────────────────────────────────────────────
+exports.obtenerSubastas = async (req, res) => {
+  try {
+    const { category, search, status, currency, page, size } = req.query;
+
+    if (search && search.trim().length >= 2) {
+      req.query.q = search;
+      return exports.buscarSubastas(req, res);
+    }
+
+    const where = { estado: status || 'abierta' };
+    if (category) {
+      if (category === 'especial') {
+        where.categoria = { in: ['especial', 'plata', 'oro', 'platino'] };
+      } else {
+        where.categoria = category;
+      }
+    }
+
+    const subastas = await prisma.subastas.findMany({
+      where,
+      orderBy: { fecha: 'asc' },
+      take:    parseInt(size) || 20,
+      include: includePortada,
+    });
+
+    return res.json({ ok: true, subastas: subastas.map(formatearSubasta) });
+
+  } catch (err) {
+    console.error('obtenerSubastas error:', err);
+    return res.status(500).json({ ok: false, message: 'Error al obtener subastas.' });
+  }
+};

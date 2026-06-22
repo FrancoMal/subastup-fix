@@ -6,20 +6,21 @@ const auth    = require('../middleware/auth');
 const {
   calendario,
   subastasDia,
-  subastasEspeciales,
-  subastasComunes,
-  buscarSubastas,
   detalleSubasta,
   linkStream,
+  obtenerSubastas
 } = require('../controllers/subastasController');
+const { cargarProducto, responderPropuesta } = require('../controllers/productosController');
 
 // Públicas (no requieren login)
-router.get('/buscar',                  buscarSubastas);
-router.get('/calendario',              calendario);
-router.get('/del-dia',                 subastasDia);
-router.get('/especiales',              subastasEspeciales);
-router.get('/comunes',                 subastasComunes);
-router.get('/:subastaId/detalle',      detalleSubasta);
-router.get('/item/:itemId/link',       linkStream);
+router.get('/',                        obtenerSubastas);
+router.get('/calendar',                calendario);
+router.get('/today',                   subastasDia);
+router.get('/:id',                     detalleSubasta);
+router.get('/:id/share-link',          linkStream);
+
+// Privadas
+router.post('/', auth, cargarProducto);
+router.patch('/:id/status', auth, responderPropuesta);
 
 module.exports = router;

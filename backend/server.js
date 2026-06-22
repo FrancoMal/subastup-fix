@@ -13,14 +13,15 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 app.use('/api/auth',           require('./routes/auth'));
-app.use('/api/subastas',       require('./routes/subastas'));
-app.use('/api/pujas',          require('./routes/pujas'));
-app.use('/api/productos',      require('./routes/productos'));
-app.use('/api/pagos',          require('./routes/pagos'));
-app.use('/api/perfil',         require('./routes/perfil'));
-app.use('/api/estadisticas',   require('./routes/estadisticas'));
-app.use('/api/chat',           require('./routes/chat'));
-app.use('/api/notificaciones', require('./routes/notificaciones'));
+app.use('/api/users',          require('./routes/users'));
+app.use('/api/auctions',       require('./routes/subastas'));
+app.use('/api/products',       require('./routes/productos'));
+app.use('/api/bids',           require('./routes/pujas'));
+app.use('/api/chats',          require('./routes/chat'));
+app.use('/api/notifications',  require('./routes/notificaciones'));
+app.use('/api/settings/payment-methods', require('./routes/pagos'));
+app.use('/api/settings',       require('./routes/settings'));
+app.use('/api/help',           require('./routes/help'));
 
 app.get('/health', (_req, res) => res.json({ ok: true, server: 'SubastaAPI', ts: new Date() }));
 

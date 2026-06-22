@@ -15,12 +15,12 @@ const {
 
 router.use(auth);
 
-router.post('/token',                       guardarToken);
+router.post('/push-token',                  guardarToken);
 router.get('/',                             listarNotificaciones);
-router.get('/sin-leer',                     contadorSinLeer);
-router.put('/leer-todas',                   marcarTodasLeidas);
-router.put('/:id/leer',                     marcarLeida);
-router.post('/suscribir/:subastaId',        suscribirSubasta);
-router.delete('/suscribir/:subastaId',      cancelarSuscripcion);
+router.get('/unread-count',                 contadorSinLeer);
+router.patch('/read-all',                   marcarTodasLeidas);
+router.patch('/:id/read',                   marcarLeida);
+router.post('/subscribe/:auctionId',        suscribirSubasta);
+router.delete('/subscribe/:auctionId',      cancelarSuscripcion);
 
 module.exports = router;

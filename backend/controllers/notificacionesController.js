@@ -155,7 +155,7 @@ exports.marcarTodasLeidas = async (req, res) => {
 exports.suscribirSubasta = async (req, res) => {
   try {
     const { personaId } = req.user;
-    const subastaId = parseInt(req.params.subastaId);
+    const subastaId = parseInt(req.params.auctionId);
 
     const existente = await prisma.suscripcionesSubasta.findFirst({
       where: { persona: personaId, subasta: subastaId },
@@ -182,7 +182,7 @@ exports.suscribirSubasta = async (req, res) => {
 exports.cancelarSuscripcion = async (req, res) => {
   try {
     const { personaId } = req.user;
-    const subastaId = parseInt(req.params.subastaId);
+    const subastaId = parseInt(req.params.auctionId);
 
     const existente = await prisma.suscripcionesSubasta.findFirst({
       where: { persona: personaId, subasta: subastaId },

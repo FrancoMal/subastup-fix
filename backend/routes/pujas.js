@@ -6,9 +6,9 @@ const auth    = require('../middleware/auth');
 const { getEstadoPuja, pujar } = require('../controllers/pujasController');
 
 // GET público (para ver la puja sin estar logueado)
-router.get('/:itemId', getEstadoPuja);
+router.get('/:itemId/status', getEstadoPuja);
 
 // POST requiere login
-router.post('/:itemId', auth, pujar);
+router.post('/', auth, pujar);
 
 module.exports = router;
