@@ -16,6 +16,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../../context/ThemeContext';
+import api from '../../services/api';
+import { ENDPOINTS } from '../../constants/api';
 
 const LOGO        = require('../../assets/images/texto_appbar.jpeg');
 const USER_AVATAR = require('../../assets/images/avatar.jpeg');
@@ -82,17 +84,23 @@ const NOTIFICATIONS = [];
 //   para no saturar el servidor con cada keystroke. Ejemplo con lodash:
 //   const debouncedSearch = useCallback(_.debounce((q) => cargarProductos(q), 400), [])
 
-const CATEGORIAS_MOCK = {
+// const CATEGORIAS_MOCK = {
+//   especial: ['Oro', 'Platino'],
+//   comun:    ['Comun', 'Especial', 'Plata', 'Oro', 'Platino'],
+// };
+// 
+// const PRODUCTOS_MOCK = [
+//   { id: '1', titulo: 'Cuadro de rosas',  moneda: 'U$D', proximamente: false, color: '#C9B99A', estado: 'vivo' },
+//   { id: '2', titulo: 'Silla de oficina', moneda: 'U$D', proximamente: true,  fecha: 'Martes 18, 15:00', color: '#B0BEC5', estado: 'proximamente' },
+//   { id: '3', titulo: 'Lampara de pared', moneda: 'AR$', proximamente: false, color: '#A5C4A8', estado: 'vivo' },
+//   { id: '4', titulo: 'Auto antiguo',     moneda: 'AR$', proximamente: false, color: '#C4A58A', estado: 'vivo' },
+// ];
+
+// Backend de la materia no implementa categorias dinamicas por ahora
+const CATEGORIAS_LOCAL = {
   especial: ['Oro', 'Platino'],
   comun:    ['Comun', 'Especial', 'Plata', 'Oro', 'Platino'],
 };
-
-const PRODUCTOS_MOCK = [
-  { id: '1', titulo: 'Cuadro de rosas',  moneda: 'U$D', proximamente: false, color: '#C9B99A', estado: 'vivo' },
-  { id: '2', titulo: 'Silla de oficina', moneda: 'U$D', proximamente: true,  fecha: 'Martes 18, 15:00', color: '#B0BEC5', estado: 'proximamente' },
-  { id: '3', titulo: 'Lampara de pared', moneda: 'AR$', proximamente: false, color: '#A5C4A8', estado: 'vivo' },
-  { id: '4', titulo: 'Auto antiguo',     moneda: 'AR$', proximamente: false, color: '#C4A58A', estado: 'vivo' },
-];
 
 // ─── Pantalla ────────────────────────────────────────────────────────────────
 export default function AuctionListAuthScreen({ navigation, route }) {
@@ -102,7 +110,7 @@ export default function AuctionListAuthScreen({ navigation, route }) {
 
   // TODO BACKEND: reemplazar CATEGORIAS_MOCK[auctionType] por el resultado de
   // api.get(`${ENDPOINTS.AUCTION_CATEGORIES}?tipo=${auctionType}`)
-  const categorias = CATEGORIAS_MOCK[auctionType] ?? CATEGORIAS_MOCK.comun;
+  const categorias = CATEGORIAS_LOCAL[auctionType] ?? CATEGORIAS_LOCAL.comun;
 
   const [search,   setSearch]   = useState('');
   const [selected, setSelected] = useState(categorias[0]);
@@ -126,14 +134,20 @@ export default function AuctionListAuthScreen({ navigation, route }) {
       // });
       // setProductos(data);
 
-      // [MOCK] — eliminar cuando conectes el backend ──────────────────────────
-      await new Promise((r) => setTimeout(r, 300)); // simula latencia de red
-      const filtrados = PRODUCTOS_MOCK.filter((p) => {
-        const matchSearch = p.titulo.toLowerCase().includes(search.toLowerCase());
-        // el filtro por categoría lo haría el backend; acá lo omitimos por simplicidad
-        return matchSearch;
+      // ── CONEXIÓN BACKEND ─────────────────────────────────────────────────────
+      const data = await api.get(ENDPOINTS.AUCTIONS, {
+        params: { tipo: auctionType, category: selected?.toLowerCase(), search: search || undefined }
       });
-      setProductos(filtrados);
+      setProductos(data || []);
+
+      // [MOCK] — eliminar cuando conectes el backend ──────────────────────────
+      // await new Promise((r) => setTimeout(r, 300)); // simula latencia de red
+      // const filtrados = PRODUCTOS_MOCK.filter((p) => {
+      //   const matchSearch = p.titulo.toLowerCase().includes(search.toLowerCase());
+      //   // el filtro por categoría lo haría el backend; acá lo omitimos por simplicidad
+      //   return matchSearch;
+      // });
+      // setProductos(filtrados);
       // ──────────────────────────────────────────────────────────────────────
 
     } catch (e) {

@@ -21,6 +21,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import api from '../../services/api';
+import { ENDPOINTS } from '../../constants/api';
+import useAuthStore from '../../store/authStore';
 
 const LOGO        = require('../../assets/images/texto_appbar.jpeg');
 const USER_AVATAR = require('../../assets/images/avatar.jpeg');
@@ -76,60 +79,60 @@ const NOTIFICATIONS = [];
 
 const DURACION_SUBASTA_SEGUNDOS = 60; // TODO BACKEND: este valor debe venir del campo duracionSegundos del objeto subasta
 
-const PRODUCTOS_MOCK = {
-  '1': {
-    id: 'ART-00142',
-    titulo: 'Cuadro de rosas',
-    descripcion: 'Hermoso cuadro pintado a mano con técnica al óleo. Dimensiones 80x60cm. Firmado por el artista. En excelente estado de conservación.',
-    imagenes: [null, null, null],           // TODO BACKEND: reemplazar nulls por URLs de Cloudinary
-    coloresPlaceholder: ['#C9B99A', '#B0BEC5', '#A5C4A8'], // TODO BACKEND: eliminar cuando lleguen imágenes reales
-    moneda: 'AR$',                          // TODO BACKEND: viene del objeto subasta
-    ultimaPuja: 2000,                       // TODO BACKEND: viene del objeto subasta (actualizar en tiempo real via WebSocket o polling)
-    estado: 'vivo',                         // TODO BACKEND: viene del objeto subasta
-    fechaProximamente: null,
-    enlace: 'https://stream.subastup.com/live/ART-00142', // TODO BACKEND: viene del objeto subasta
-    articulosIncluidos: ['Cuadro 80x60cm', 'Certificado de autenticidad'], // TODO BACKEND: viene del objeto subasta
-  },
-  '2': {
-    id: 'ART-00143',
-    titulo: 'Silla de oficina',
-    descripcion: 'Silla ergonómica en perfecto estado. Regulación de altura y apoyabrazos.',
-    imagenes: [null, null],
-    coloresPlaceholder: ['#B0BEC5', '#90A4AE'],
-    moneda: 'U$D',
-    ultimaPuja: 150,
-    estado: 'proximamente',
-    fechaProximamente: 'Lunes 2, 19:30',
-    enlace: null,
-    articulosIncluidos: [],
-  },
-  '3': {
-    id: 'ART-00144',
-    titulo: 'Lampara de pared',
-    descripcion: 'Lámpara vintage de pared, estilo industrial. Incluye bombilla LED.',
-    imagenes: [null, null],
-    coloresPlaceholder: ['#A5C4A8', '#80CBC4'],
-    moneda: 'AR$',
-    ultimaPuja: 800,
-    estado: 'vivo',
-    fechaProximamente: null,
-    enlace: 'https://stream.subastup.com/live/ART-00144',
-    articulosIncluidos: ['Lámpara de pared', 'Bombilla LED incluida', 'Cable de 1.5m'],
-  },
-  '4': {
-    id: 'ART-00145',
-    titulo: 'Auto antiguo',
-    descripcion: 'Volkswagen Escarabajo 1972 en excelente estado de conservación.',
-    imagenes: [null, null],
-    coloresPlaceholder: ['#C4A58A', '#BCAAA4'],
-    moneda: 'AR$',
-    ultimaPuja: 500000,
-    estado: 'vivo',
-    fechaProximamente: null,
-    enlace: 'https://stream.subastup.com/live/ART-00145',
-    articulosIncluidos: ['Volkswagen Escarabajo 1972'],
-  },
-};
+// const PRODUCTOS_MOCK = {
+//   '1': {
+//     id: 'ART-00142',
+//     titulo: 'Cuadro de rosas',
+//     descripcion: 'Hermoso cuadro pintado a mano con técnica al óleo. Dimensiones 80x60cm. Firmado por el artista. En excelente estado de conservación.',
+//     imagenes: [null, null, null],           // TODO BACKEND: reemplazar nulls por URLs de Cloudinary
+//     coloresPlaceholder: ['#C9B99A', '#B0BEC5', '#A5C4A8'], // TODO BACKEND: eliminar cuando lleguen imágenes reales
+//     moneda: 'AR$',                          // TODO BACKEND: viene del objeto subasta
+//     ultimaPuja: 2000,                       // TODO BACKEND: viene del objeto subasta (actualizar en tiempo real via WebSocket o polling)
+//     estado: 'vivo',                         // TODO BACKEND: viene del objeto subasta
+//     fechaProximamente: null,
+//     enlace: 'https://stream.subastup.com/live/ART-00142', // TODO BACKEND: viene del objeto subasta
+//     articulosIncluidos: ['Cuadro 80x60cm', 'Certificado de autenticidad'], // TODO BACKEND: viene del objeto subasta
+//   },
+//   '2': {
+//     id: 'ART-00143',
+//     titulo: 'Silla de oficina',
+//     descripcion: 'Silla ergonómica en perfecto estado. Regulación de altura y apoyabrazos.',
+//     imagenes: [null, null],
+//     coloresPlaceholder: ['#B0BEC5', '#90A4AE'],
+//     moneda: 'U$D',
+//     ultimaPuja: 150,
+//     estado: 'proximamente',
+//     fechaProximamente: 'Lunes 2, 19:30',
+//     enlace: null,
+//     articulosIncluidos: [],
+//   },
+//   '3': {
+//     id: 'ART-00144',
+//     titulo: 'Lampara de pared',
+//     descripcion: 'Lámpara vintage de pared, estilo industrial. Incluye bombilla LED.',
+//     imagenes: [null, null],
+//     coloresPlaceholder: ['#A5C4A8', '#80CBC4'],
+//     moneda: 'AR$',
+//     ultimaPuja: 800,
+//     estado: 'vivo',
+//     fechaProximamente: null,
+//     enlace: 'https://stream.subastup.com/live/ART-00144',
+//     articulosIncluidos: ['Lámpara de pared', 'Bombilla LED incluida', 'Cable de 1.5m'],
+//   },
+//   '4': {
+//     id: 'ART-00145',
+//     titulo: 'Auto antiguo',
+//     descripcion: 'Volkswagen Escarabajo 1972 en excelente estado de conservación.',
+//     imagenes: [null, null],
+//     coloresPlaceholder: ['#C4A58A', '#BCAAA4'],
+//     moneda: 'AR$',
+//     ultimaPuja: 500000,
+//     estado: 'vivo',
+//     fechaProximamente: null,
+//     enlace: 'https://stream.subastup.com/live/ART-00145',
+//     articulosIncluidos: ['Volkswagen Escarabajo 1972'],
+//   },
+// };
 
 // ─── Helper: mostrar toast (Android) o Alert (iOS) ───────────────────────────
 const mostrarToast = (msg) => {
@@ -144,18 +147,37 @@ const mostrarToast = (msg) => {
 export default function AuctionDetailAuthScreen({ navigation, route }) {
   const insets    = useSafeAreaInsets();
   const productId = route?.params?.productId ?? '1';
-  const producto  = PRODUCTOS_MOCK[productId] ?? PRODUCTOS_MOCK['1'];
+  // const producto  = PRODUCTOS_MOCK[productId] ?? PRODUCTOS_MOCK['1'];
 
-  // TODO BACKEND: reemplazar por el userId real del authStore (Zustand)
-  // Ejemplo: const { userId } = useAuthStore()
-  const MI_USER_ID = 'user-mock-123';
+  const user = useAuthStore((s) => s.user);
+  const MI_USER_ID = String(user?.id ?? 'user-mock-123');
+
+  const [producto, setProducto] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   // ── Datos en tiempo real ──────────────────────
-  // TODO BACKEND: reemplazar ultimaPujaLocal con el valor que llega del WebSocket o polling
-  // Suscribirse al canal: ws://api.subastup.com/auctions/${productId}/bids
-  // Al recibir evento 'nueva_puja': setUltimaPujaLocal(event.monto); resetContador()
-  const [ultimaPujaLocal,    setUltimaPujaLocal]    = useState(producto.ultimaPuja);
+  const [ultimaPujaLocal,    setUltimaPujaLocal]    = useState(0);
   const [ultimoPujadorId,    setUltimoPujadorId]    = useState(null); // TODO BACKEND: llega del WebSocket
+
+  // ── CONEXIÓN BACKEND — detalle de subasta ───────────────────────────
+  useEffect(() => {
+    const cargarProducto = async () => {
+      if (!productId) return;
+      try {
+        setLoading(true);
+        // GET /api/auctions/:id
+        const data = await api.get(ENDPOINTS.AUCTION_BY_ID(productId));
+        setProducto(data);
+        setUltimaPujaLocal(data?.ultimaPuja ?? data?.precioBase ?? 0);
+      } catch (error) {
+        console.log('[AuctionDetail] Error al cargar:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    cargarProducto();
+  }, [productId]);
+  // ─────────────────────────────────────────────────────────────────────
 
   // ── Contador regresivo ────────────────────────
   const [segundosRestantes,  setSegundosRestantes]  = useState(DURACION_SUBASTA_SEGUNDOS);
@@ -198,7 +220,7 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
   // Así se evita que el modal aparezca en otra pantalla.
   useFocusEffect(
     useCallback(() => {
-      if (producto.estado !== 'vivo') return;
+      if (!producto || producto.estado !== 'vivo') return;
       intervalRef.current = setInterval(() => {
         setSegundosRestantes((prev) => {
           if (prev <= 1) {
@@ -212,7 +234,7 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
       return () => {
         if (intervalRef.current) clearInterval(intervalRef.current);
       };
-    }, [producto.estado, manejarFinSubasta])
+    }, [producto?.estado, manejarFinSubasta])
   );
 
   // Porcentaje para la barra visual
@@ -246,32 +268,35 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
   const DEV_TIENE_METODO_PAGO = true; // TODO BACKEND: borrar esta línea
   const [modalSinMetodoPago, setModalSinMetodoPago] = useState(false);
 
-  const handleTecla = (tecla) => {
+  const handleTecla = async (tecla) => {
     if (tecla === '←') {
       setMontoPuja((prev) => prev.slice(0, -1));
     } else if (tecla === 'Pujar') {
-      // TODO BACKEND: reemplazar DEV_TIENE_METODO_PAGO por llamada real a la API
-      if (!DEV_TIENE_METODO_PAGO) {
-        setTecladoVisible(false);
-        setModalSinMetodoPago(true);
-        return;
-      }
+      // // TODO BACKEND: reemplazar DEV_TIENE_METODO_PAGO por llamada real a la API
+      // if (!DEV_TIENE_METODO_PAGO) {
+      //   setTecladoVisible(false);
+      //   setModalSinMetodoPago(true);
+      //   return;
+      // }
       const monto = Number(montoPuja.replace(',', '.'));
       if (!monto || monto <= ultimaPujaLocal) {
         // Monto inválido o menor/igual a la puja actual — no se permite
         mostrarToast(`La puja debe ser mayor a ${producto.moneda} ${ultimaPujaLocal.toLocaleString('es-AR')}`);
         return;
       }
-      // TODO BACKEND: reemplazar console.log por llamada real:
-      //   await api.post(ENDPOINTS.BIDS, { auctionId: producto.id, monto })
-      // Si la respuesta es exitosa:
-      //   - setUltimaPujaLocal(monto)
-      //   - setUltimoPujadorId(MI_USER_ID)
-      //   - resetContador()   ← el backend también debe emitir evento WebSocket a todos los viewers
-      console.log('[Puja] Monto:', monto, '| Subasta:', producto.id);
-      setUltimaPujaLocal(monto);
-      setUltimoPujadorId(MI_USER_ID); // mock local: en backend llega por WebSocket
-      resetContador();
+      
+      // ── CONEXIÓN BACKEND — enviar puja ──────────────────────────────────
+      try {
+        await api.post(ENDPOINTS.BIDS, { auctionId: producto.id, amount: monto });
+        console.log('[Puja] Monto:', monto, '| Subasta:', producto.id);
+        setUltimaPujaLocal(monto);
+        setUltimoPujadorId(MI_USER_ID); // mock local: en backend llega por WebSocket
+        resetContador();
+      } catch (error) {
+        console.log('[AuctionDetail] Error al pujar:', error);
+        mostrarToast(error?.response?.data?.message || 'Error al enviar puja');
+      }
+      // ──────────────────────────────────────────────────────────────────
       setTecladoVisible(false);
       setMontoPuja('');
     } else {
@@ -342,8 +367,16 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
   const panelScale      = notifAnim.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] });
   const panelOpacity    = notifAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
 
-  const esProximamente = producto.estado === 'proximamente';
-  const esVivo         = producto.estado === 'vivo';
+  const esProximamente = producto?.estado === 'proximamente';
+  const esVivo         = producto?.estado === 'vivo';
+
+  if (loading || !producto) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#8b0000" />
+      </View>
+    );
+  }
 
   // ─────────────────────────────────────────────
   return (
@@ -369,7 +402,7 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
         {/* Carrusel */}
         <View style={styles.carouselContainer}>
           <FlatList
-            data={producto.imagenes}
+            data={producto.imagenes || []}
             keyExtractor={(_, i) => String(i)}
             horizontal
             pagingEnabled
@@ -380,12 +413,12 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
               item ? (
                 <Image source={{ uri: item }} style={styles.carouselImage} resizeMode="cover" />
               ) : (
-                <View style={[styles.carouselImage, { backgroundColor: producto.coloresPlaceholder[index % 3] }]} />
+                <View style={[styles.carouselImage, { backgroundColor: producto.coloresPlaceholder?.[index % 3] || '#CCC' }]} />
               )
             }
           />
           <View style={styles.dotsRow}>
-            {producto.imagenes.map((_, i) => (
+            {(producto.imagenes || []).map((_, i) => (
               <View key={i} style={[styles.dot, i === activeSlide && styles.dotActive]} />
             ))}
           </View>
@@ -689,7 +722,7 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
 
                   <Text style={styles.infoSubtitulo}>Articulos incluidos</Text>
                   <View style={styles.infoArticulosBox}>
-                    {producto.articulosIncluidos.map((art, i) => (
+                    {(producto.articulosIncluidos || []).map((art, i) => (
                       <Text key={i} style={styles.infoArticuloItem}>{art}</Text>
                     ))}
                   </View>

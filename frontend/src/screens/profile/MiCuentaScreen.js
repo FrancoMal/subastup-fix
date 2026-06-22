@@ -12,6 +12,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../../context/ThemeContext';
+import { useEffect } from 'react';
+import api from '../../services/api';
+import { ENDPOINTS } from '../../constants/api';
+import useAuthStore from '../../store/authStore';
 
 // ─── Componente de campo (vista + edición unificados) ────────────────────────
 const Campo = ({ label, value, onChange, editing, censurable, secureEntry, bloqueado, keyboardType }) => {
@@ -67,15 +71,33 @@ const Campo = ({ label, value, onChange, editing, censurable, secureEntry, bloqu
 export default function MiCuentaScreen({ navigation }) {
   const { theme, isDark } = useAppTheme();
   // En Avance 03: reemplazar con useAuthStore()
+  // const usuarioInicial = {
+  //   nombre: 'Juan Perez',
+  //   avatar: null,
+  //   correo: 'val********************com',
+  //   contrasena: '******************',
+  //   telefono: '1137567037',
+  //   documento: '***************',
+  //   idUsuario: 'q3tm894j',
+  // };
+
+  // ── CONEXIÓN BACKEND — perfil ─────────────────────────────────────────
+  // Obtener datos reales del usuario desde authStore (guardados al hacer login)
+  const user = useAuthStore((s) => s.user);
+
+  // Estado inicial del form usando datos del store (mientras carga la API)
   const usuarioInicial = {
-    nombre: 'Juan Perez',
-    avatar: null,
-    correo: 'val********************com',
-    contrasena: '******************',
-    telefono: '1137567037',
-    documento: '***************',
-    idUsuario: 'q3tm894j',
+    nombre:     user?.name       ?? 'Usuario',
+    avatar:     user?.avatarUrl  ?? null,
+    correo:     user?.email      ?? '',
+    contrasena: '••••••••••••••••',    // nunca se muestra la contraseña real
+    telefono:   user?.telefono   ?? '',
+    documento:  user?.documento  ?? '',
+    idUsuario:  String(user?.id  ?? ''),
   };
+  // ─────────────────────────────────────────────────────────────────────
+  
+  const [loadingPerfil, setLoadingPerfil] = useState(false);
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ ...usuarioInicial });
@@ -110,9 +132,29 @@ export default function MiCuentaScreen({ navigation }) {
         {
           text: 'Guardar',
           onPress: () => {
-            // TODO Avance 03: authStore.updateUser(form) → PATCH /users/me
-            console.log('[MiCuenta] Guardar:', form);
-            setEditing(false);
+            // // TODO Avance 03: authStore.updateUser(form) → PATCH /users/me
+            // console.log('[MiCuenta] Guardar:', form);
+            // setEditing(false);
+
+            // ── CONEXIÓN BACKEND — guardar perfil ──────────────────────────
+            // PUT /api/users/me
+            // Body: { nombre, telefono, direccion, password (opcional) }
+            api.put(ENDPOINTS.ME, {
+              nombre:   form.nombre,
+              telefono: form.telefono,
+            })
+              .then(() => {
+                // Perfil actualizado correctamente
+                setEditing(false);
+              })
+              .catch((err) => {
+                // Si falla el servidor mostrar error al usuario
+                Alert.alert(
+                  'Error',
+                  err?.data?.message || 'No se pudo guardar. Intentá de nuevo.'
+                );
+              });
+            // ──────────────────────────────────────────────────────────────
           },
         },
       ]

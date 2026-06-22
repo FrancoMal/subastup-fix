@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { ActivityIndicator } from 'react-native';
+import api from '../../services/api';
+import { ENDPOINTS } from '../../constants/api';
 
 const LOGO  = require('../../assets/images/texto_appbar.jpeg');
 const { width } = Dimensions.get('window');
@@ -30,22 +33,46 @@ const { width } = Dimensions.get('window');
 // ─────────────────────────────────────────────────────────────
 
 // MOCK — se reemplaza con api.get(ENDPOINTS.AUCTION_BY_ID(productId))
-const PRODUCTO_MOCK = {
-  id: 'ART-00142',
-  titulo: 'Cuadro de rosas',
-  descripcion: 'Hermoso cuadro pintado a mano con técnica al óleo. Dimensiones 80x60cm. Firmado por el artista. En excelente estado de conservación.',
-  imagenes: [null, null, null], // null = placeholder; con API serán URLs
-  moneda: 'USD',
-  precioBase: 500,
-  categoria: 'oro',
-  estado: 'activo',
-  coloresPlaceholder: ['#C9B99A', '#B0BEC5', '#A5C4A8'],
-};
+// const PRODUCTO_MOCK = {
+//   id: 'ART-00142',
+//   titulo: 'Cuadro de rosas',
+//   descripcion: 'Hermoso cuadro pintado a mano con técnica al óleo. Dimensiones 80x60cm. Firmado por el artista. En excelente estado de conservación.',
+//   imagenes: [null, null, null], // null = placeholder; con API serán URLs
+//   moneda: 'USD',
+//   precioBase: 500,
+//   categoria: 'oro',
+//   estado: 'activo',
+//   coloresPlaceholder: ['#C9B99A', '#B0BEC5', '#A5C4A8'],
+// };
 
 export default function AuctionDetailScreen({ navigation, route }) {
   const insets    = useSafeAreaInsets();
   const productId = route?.params?.productId;
-  const producto  = PRODUCTO_MOCK; // ← reemplazar con fetch por productId
+  // const producto  = PRODUCTO_MOCK; // ← reemplazar con fetch por productId
+
+  const [producto, setProducto] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // ── CONEXIÓN BACKEND — detalle de subasta ───────────────────────────
+  useEffect(() => {
+    const cargarProducto = async () => {
+      if (!productId) return;
+      try {
+        setLoading(true);
+        // GET /api/auctions/:id
+        // Devuelve: { id, titulo, descripcion, imagenes[], moneda, precioBase, categoria, estado }
+        const data = await api.get(ENDPOINTS.AUCTION_BY_ID(productId));
+        setProducto(data);
+      } catch (error) {
+        console.log('[AuctionDetail] Error al cargar:', error);
+        // Si falla el backend el producto queda null y la pantalla muestra vacío
+      } finally {
+        setLoading(false);
+      }
+    };
+    cargarProducto();
+  }, [productId]);
+  // ─────────────────────────────────────────────────────────────────────
 
   const [activeSlide, setActiveSlide] = useState(0);
 
@@ -53,6 +80,12 @@ export default function AuctionDetailScreen({ navigation, route }) {
     const slide = Math.round(e.nativeEvent.contentOffset.x / width);
     setActiveSlide(slide);
   };
+
+  if (loading || !producto) return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <ActivityIndicator size="large" color="#8b0000" />
+    </View>
+  );
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../../context/ThemeContext';
 import useAuthStore from '../../store/authStore';
+import { useFocusEffect } from '@react-navigation/native';
+import api from '../../services/api';
+import { ENDPOINTS } from '../../constants/api';
 
 const LOGO = require('../../assets/images/texto_appbar.jpeg');
 const { width } = Dimensions.get('window');
@@ -31,13 +34,13 @@ const { width } = Dimensions.get('window');
 // }
 // ─────────────────────────────────────────────────────────────
 
-const SUBASTAS_MOCK = [
-  { id: '1', titulo: 'Cuadro de rosas',  imagen: null, moneda: 'USD', precioBase: 500,    fecha: '2025-09-04', hora: '15:00', colorPlaceholder: '#C9B99A' },
-  { id: '2', titulo: 'Silla de oficina', imagen: null, moneda: 'ARS', precioBase: 85000,  fecha: '2025-09-09', hora: '18:00', colorPlaceholder: '#B0BEC5' },
-  { id: '3', titulo: 'Lampara de pared', imagen: null, moneda: 'ARS', precioBase: 32000,  fecha: '2025-09-13', hora: '10:00', colorPlaceholder: '#A5C4A8' },
-  { id: '4', titulo: 'Auto antiguo',     imagen: null, moneda: 'USD', precioBase: 12000,  fecha: '2025-09-13', hora: '20:00', colorPlaceholder: '#C4A58A' },
-  { id: '5', titulo: 'Reloj de pared',   imagen: null, moneda: 'ARS', precioBase: 15000,  fecha: '2025-09-20', hora: '17:00', colorPlaceholder: '#D4B8C0' },
-];
+// const SUBASTAS_MOCK = [
+//   { id: '1', titulo: 'Cuadro de rosas',  imagen: null, moneda: 'USD', precioBase: 500,    fecha: '2025-09-04', hora: '15:00', colorPlaceholder: '#C9B99A' },
+//   { id: '2', titulo: 'Silla de oficina', imagen: null, moneda: 'ARS', precioBase: 85000,  fecha: '2025-09-09', hora: '18:00', colorPlaceholder: '#B0BEC5' },
+//   { id: '3', titulo: 'Lampara de pared', imagen: null, moneda: 'ARS', precioBase: 32000,  fecha: '2025-09-13', hora: '10:00', colorPlaceholder: '#A5C4A8' },
+//   { id: '4', titulo: 'Auto antiguo',     imagen: null, moneda: 'USD', precioBase: 12000,  fecha: '2025-09-13', hora: '20:00', colorPlaceholder: '#C4A58A' },
+//   { id: '5', titulo: 'Reloj de pared',   imagen: null, moneda: 'ARS', precioBase: 15000,  fecha: '2025-09-20', hora: '17:00', colorPlaceholder: '#D4B8C0' },
+// ];
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DIAS_SEMANA = ['Su','Mo','Tu','We','Th','Fr','Sa'];
@@ -51,25 +54,83 @@ export default function CalendarScreen({ navigation }) {
   const [mes,  setMes]  = useState(hoy.getMonth());
   const [anio, setAnio] = useState(hoy.getFullYear());
   const [diaSeleccionado, setDiaSeleccionado] = useState(null);
+  const [subastas, setSubastas] = useState([]);
+  const [loadingSubastas, setLoadingSubastas] = useState(false);
 
   // Días con subastas en el mes actual
-  const diasConSubasta = SUBASTAS_MOCK
+  // const diasConSubasta = SUBASTAS_MOCK
+  //   .filter(s => {
+  //     const f = new Date(s.fecha);
+  //     return f.getMonth() === mes && f.getFullYear() === anio;
+  //   })
+  //   .map(s => new Date(s.fecha).getDate());
+  // 
+  // // Subastas del día seleccionado o todas del mes
+  // const subastasFiltradas = diaSeleccionado
+  //   ? SUBASTAS_MOCK.filter(s => {
+  //       const f = new Date(s.fecha);
+  //       return f.getDate() === diaSeleccionado && f.getMonth() === mes && f.getFullYear() === anio;
+  //     })
+  //   : SUBASTAS_MOCK.filter(s => {
+  //       const f = new Date(s.fecha);
+  //       return f.getMonth() === mes && f.getFullYear() === anio;
+  //     });
+
+  // ── CONEXIÓN BACKEND ─────────────────────────────────────────────────────
+  // Carga subastas del mes visible cada vez que la pantalla recibe foco
+  // o el usuario cambia de mes (mes/anio cambian → useFocusEffect no re-corre solo;
+  // se usa useEffect con [mes, anio] para eso)
+  useEffect(() => {
+    const cargarCalendario = async () => {
+      try {
+        setLoadingSubastas(true);
+        // GET /api/auctions/calendar?month=MES&year=AÑO
+        // Devuelve array de subastas con fecha en formato YYYY-MM-DD
+        const data = await api.get(
+          `${ENDPOINTS.CALENDAR}?month=${mes + 1}&year=${anio}`
+        );
+        // Guardar en estado para reemplazar SUBASTAS_MOCK
+        setSubastas(data || []);
+      } catch (error) {
+        // Si falla el backend, dejar el array vacío (no mostrar datos falsos)
+        console.log('[CalendarScreen] Error al cargar calendario:', error);
+        setSubastas([]);
+      } finally {
+        setLoadingSubastas(false);
+      }
+    };
+    cargarCalendario();
+  }, [mes, anio]); // Re-corre cuando el usuario navega de mes
+
+  // BLOQUE DE FILTRADO REAL (reemplaza SUBASTAS_MOCK.filter)
+  // Calcula días que tienen subasta en el mes/año visible
+  const diasConSubasta = subastas
     .filter(s => {
+      // Parsear la fecha que viene del backend (YYYY-MM-DD)
       const f = new Date(s.fecha);
       return f.getMonth() === mes && f.getFullYear() === anio;
     })
-    .map(s => new Date(s.fecha).getDate());
+    .map(s => new Date(s.fecha).getDate()); // Extraer solo el número de día
 
-  // Subastas del día seleccionado o todas del mes
+  // Filtra las subastas según si hay un día seleccionado o muestra todo el mes
   const subastasFiltradas = diaSeleccionado
-    ? SUBASTAS_MOCK.filter(s => {
+    ? subastas.filter(s => {
         const f = new Date(s.fecha);
-        return f.getDate() === diaSeleccionado && f.getMonth() === mes && f.getFullYear() === anio;
+        return (
+          f.getDate()     === diaSeleccionado &&
+          f.getMonth()    === mes             &&
+          f.getFullYear() === anio
+        );
       })
-    : SUBASTAS_MOCK.filter(s => {
+    : subastas.filter(s => {
         const f = new Date(s.fecha);
         return f.getMonth() === mes && f.getFullYear() === anio;
       });
+
+  // El resto de la pantalla usa subastasFiltradas igual que antes —
+  // los campos del objeto cambian de (titulo, moneda, precioBase, hora, colorPlaceholder)
+  // a los que devuelva el backend. Ajustar renderSubasta si los nombres difieren.
+  // ─────────────────────────────────────────────────────────────────────────
 
   const cambiarMes = (delta) => {
     let nuevoMes  = mes + delta;

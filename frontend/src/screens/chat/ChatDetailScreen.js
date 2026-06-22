@@ -150,7 +150,7 @@ export default function ChatDetailScreen({ route, navigation }) {
       try {
         setLoading(true);
         if (!chatId) return;
-        const data = await api.get(ENDPOINTS.MESSAGES(chatId));
+        const data = await api.get(ENDPOINTS.CHAT_MESSAGES(chatId));
         setMessages(data || []);
       } catch (error) {
         console.log('Error fetching messages, usando mock:', error);

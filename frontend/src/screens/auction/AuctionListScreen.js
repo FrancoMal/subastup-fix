@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import api from '../../services/api';
+import { ENDPOINTS } from '../../constants/api';
 
 const LOGO = require('../../assets/images/texto_appbar.jpeg');
 const { width } = Dimensions.get('window');
@@ -23,12 +25,12 @@ const CATEGORIAS = {
   comun:    ['Comun', 'Especial', 'Plata', 'Oro', 'Platino'],
 };
 
-const PRODUCTOS_MOCK = [
-  { id: '1', titulo: 'Cuadro de rosas',  moneda: 'U$D', proximamente: false, color: '#C9B99A' },
-  { id: '2', titulo: 'Silla de oficina', moneda: 'U$D', proximamente: true,  fecha: 'Martes 18, 15:00', color: '#B0BEC5' },
-  { id: '3', titulo: 'Lampara de pared', moneda: 'AR$', proximamente: false, color: '#A5C4A8' },
-  { id: '4', titulo: 'Auto antiguo',     moneda: 'AR$', proximamente: false, color: '#C4A58A' },
-];
+// const PRODUCTOS_MOCK = [
+//   { id: '1', titulo: 'Cuadro de rosas',  moneda: 'U$D', proximamente: false, color: '#C9B99A' },
+//   { id: '2', titulo: 'Silla de oficina', moneda: 'U$D', proximamente: true,  fecha: 'Martes 18, 15:00', color: '#B0BEC5' },
+//   { id: '3', titulo: 'Lampara de pared', moneda: 'AR$', proximamente: false, color: '#A5C4A8' },
+//   { id: '4', titulo: 'Auto antiguo',     moneda: 'AR$', proximamente: false, color: '#C4A58A' },
+// ];
 
 export default function AuctionListScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
@@ -37,8 +39,39 @@ export default function AuctionListScreen({ navigation, route }) {
 
   const [search,   setSearch]   = useState('');
   const [selected, setSelected] = useState(categorias[0]);
+  const [productos, setProductos] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  const productosFiltrados = PRODUCTOS_MOCK.filter(() => true);
+  // const productosFiltrados = PRODUCTOS_MOCK.filter(() => true);
+
+  // ── CONEXIÓN BACKEND — listado de subastas ───────────────────────────
+  useEffect(() => {
+    const cargarProductos = async () => {
+      try {
+        setLoading(true);
+        // GET /api/auctions?category=CATEGORIA&search=TEXTO
+        // Filtra por categoría seleccionada y texto de búsqueda
+        const data = await api.get(ENDPOINTS.AUCTIONS, {
+          params: {
+            category: selected.toLowerCase(), // ej: 'oro', 'platino', 'comun'
+            search:   search || undefined,    // solo enviar si hay texto
+          },
+        });
+        setProductos(data || []);
+      } catch (error) {
+        // Si falla el backend dejar lista vacía
+        console.log('[AuctionList] Error al cargar:', error);
+        setProductos([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    cargarProductos();
+  }, [selected, search]); // Re-corre cuando cambia el filtro o la búsqueda
+
+  // Usar los productos del estado (backend) en lugar del mock
+  const productosFiltrados = productos;
+  // ─────────────────────────────────────────────────────────────────────
 
   const renderCard = ({ item, index }) => (
     <TouchableOpacity

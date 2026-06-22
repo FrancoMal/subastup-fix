@@ -13,51 +13,52 @@ import {
 import {
   GraficoEvolucion,
   GraficoDistribucion,
-  fetchEvolucionMock,
-  fetchDistribucionMock,
 } from '../../components/EstadisticasCharts';
 import { COLORS } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import api from '../../services/api';
+import { ENDPOINTS } from '../../constants/api';
+import useAuthStore from '../../store/authStore';
 
 const { width } = Dimensions.get('window');
 
 // ──────────────────────────────────────────────
 // Datos de ejemplo — reemplazá con tu API/estado
 // ──────────────────────────────────────────────
-const MOCK_STATS = {
-  subastasPerdidas: 7,
-  pujasRealizadas: 17,
-  subastasGanadas: 3,
-  totalGastado: '$128.400',
-};
-
-const MOCK_HISTORIAL = [
-  {
-    id: '1',
-    titulo: 'Cámara analógica Nikon F3',
-    imagen: 'https://picsum.photos/seed/cam/60/60',
-    monto: '$12.500',
-    estado: 'Ganada',
-    fecha: 'hace 2 días',
-  },
-  {
-    id: '2',
-    titulo: 'Reloj Seiko vintage 1978',
-    imagen: 'https://picsum.photos/seed/watch/60/60',
-    monto: '$8.200',
-    estado: 'Superada',
-    fecha: 'hace 5 días',
-  },
-  {
-    id: '3',
-    titulo: 'Silla Eames replica',
-    imagen: 'https://picsum.photos/seed/chair/60/60',
-    monto: '$31.000',
-    estado: 'Superada',
-    fecha: 'hace 1 día',
-  },
-];
+// const MOCK_STATS = {
+//   subastasPerdidas: 7,
+//   pujasRealizadas: 17,
+//   subastasGanadas: 3,
+//   totalGastado: '$128.400',
+// };
+// 
+// const MOCK_HISTORIAL = [
+//   {
+//     id: '1',
+//     titulo: 'Cámara analógica Nikon F3',
+//     imagen: 'https://picsum.photos/seed/cam/60/60',
+//     monto: '$12.500',
+//     estado: 'Ganada',
+//     fecha: 'hace 2 días',
+//   },
+//   {
+//     id: '2',
+//     titulo: 'Reloj Seiko vintage 1978',
+//     imagen: 'https://picsum.photos/seed/watch/60/60',
+//     monto: '$8.200',
+//     estado: 'Superada',
+//     fecha: 'hace 5 días',
+//   },
+//   {
+//     id: '3',
+//     titulo: 'Silla Eames replica',
+//     imagen: 'https://picsum.photos/seed/chair/60/60',
+//     monto: '$31.000',
+//     estado: 'Superada',
+//     fecha: 'hace 1 día',
+//   },
+// ];
 
 // ──────────────────────────────────────────────
 // Sub-componentes
@@ -113,10 +114,26 @@ export default function InformacionScreen({ navigation }) {
     React.useCallback(() => {
       const cargarGraficos = async () => {
         // TODO: reemplazar con llamada al backend cuando esté disponible
-        const evol = await fetchEvolucionMock();
-        setEvolucionData(evol);
-        const dist = await fetchDistribucionMock();
-        setDistData(dist);
+        // const evol = await fetchEvolucionMock();
+        // setEvolucionData(evol);
+        // const dist = await fetchDistribucionMock();
+        // setDistData(dist);
+
+      // ── CONEXIÓN BACKEND — gráficos ──────────────────────────────────────
+      // GET /api/users/me/stats/evolution
+      // Devuelve array de puntos: [{ fecha: 'YYYY-MM-DD', monto: number }]
+      const evol = await api.get(ENDPOINTS.MY_STATS_EVOL);
+      setEvolucionData(evol || []);
+
+      // GET /api/users/me/stats
+      // Devuelve: { subastasGanadas, subastasPerdidas, pujasRealizadas, totalGastado }
+      // Se usa para el gráfico de distribución ganadas vs perdidas
+      const statsData = await api.get(ENDPOINTS.MY_STATS);
+      setDistData({
+        ganadas:  statsData?.subastasGanadas  ?? 0,
+        perdidas: statsData?.subastasPerdidas ?? 0,
+      });
+      // ─────────────────────────────────────────────────────────────────────
       };
       cargarGraficos();
     }, [])
@@ -125,10 +142,36 @@ export default function InformacionScreen({ navigation }) {
   useFocusEffect(
     React.useCallback(() => {
       // TODO: reemplazar con GET /api/users/me/stats cuando el backend esté listo
-      setTimeout(() => {
-        setStats(MOCK_STATS);
-        setHistorial(MOCK_HISTORIAL);
-      }, 300);
+      // setTimeout(() => {
+      //   setStats(MOCK_STATS);
+      //   setHistorial(MOCK_HISTORIAL);
+      // }, 300);
+
+      // ── CONEXIÓN BACKEND — stats y historial ─────────────────────────────
+      // GET /api/users/me/stats
+      // Devuelve: { subastasGanadas, subastasPerdidas, pujasRealizadas, totalGastado }
+      const loadStatsAndHistory = async () => {
+        try {
+          const stats = await api.get(ENDPOINTS.MY_STATS);
+          // Mapear campos del backend al formato que usan los StatCard
+          setStats({
+            subastasGanadas:  stats?.subastasGanadas  ?? 0,
+            subastasPerdidas: stats?.subastasPerdidas ?? 0,
+            pujasRealizadas:  stats?.pujasRealizadas  ?? 0,
+            totalGastado:     stats?.totalGastado     ?? '$0',
+          });
+
+          // GET /api/users/me/bids
+          // Devuelve array: [{ id, titulo, imagen, monto, estado, fecha }]
+          // El campo 'estado' puede ser 'Ganada', 'Superada' o 'Perdida'
+          const bids = await api.get(ENDPOINTS.MY_BIDS);
+          setHistorial(bids || []);
+        } catch(error) {
+          console.log('[InformacionScreen] Error fetching stats or bids', error);
+        }
+      };
+      loadStatsAndHistory();
+      // ─────────────────────────────────────────────────────────────────────
     }, [])
   );
 

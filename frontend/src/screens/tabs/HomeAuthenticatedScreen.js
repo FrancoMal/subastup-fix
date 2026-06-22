@@ -16,6 +16,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import useAuthStore from '../../store/authStore';
 import { useAppTheme } from '../../context/ThemeContext';
+import { useEffect } from 'react';
+import api from '../../services/api';
+import { ENDPOINTS } from '../../constants/api';
 
 const LOGO             = require('../../assets/images/texto_appbar.jpeg');
 const IMG_PLACEHOLDER1 = require('../../assets/images/imagen_menu1.jpeg');
@@ -48,7 +51,7 @@ const DRAWER_GROUPS = [
 ];
 
 // Notificaciones de ejemplo (vacío = muestra el placeholder)
-const NOTIFICATIONS = [];
+// const NOTIFICATIONS = [];
 
 export default function HomeAuthenticatedScreen({ navigation }) {
   const { theme, isDark } = useAppTheme();
@@ -68,6 +71,22 @@ export default function HomeAuthenticatedScreen({ navigation }) {
   const [darkTheme,      setDarkTheme]      = useState(true);
   const notifAnim    = useRef(new Animated.Value(0)).current;
   const notifOverlay = useRef(new Animated.Value(0)).current;
+
+  // ── Backend Notifications ────────────────────
+  const [notifications, setNotifications] = useState([]);
+
+  useEffect(() => {
+    const fetchNotifs = async () => {
+      try {
+        const data = await api.get(ENDPOINTS.NOTIFICATIONS);
+        // data usually contains [{ mensaje: '...' }, ...]
+        setNotifications(data?.map(n => n.mensaje || n.titulo || JSON.stringify(n)) || []);
+      } catch (err) {
+        console.log('Error fetching notifications:', err);
+      }
+    };
+    fetchNotifs();
+  }, []);
 
   // ── Hamburger helpers ────────────────────────
   const openMenu = () => {
@@ -237,10 +256,10 @@ export default function HomeAuthenticatedScreen({ navigation }) {
 
             {notifsExpanded && (
               <View style={[styles.notifContent, { backgroundColor: theme.background }]}>
-                {NOTIFICATIONS.length === 0 ? (
+                {notifications.length === 0 ? (
                   <Text style={[styles.notifEmpty, { color: theme.placeholder }]}>{'<<No hay notificaciones>>'}</Text>
                 ) : (
-                  NOTIFICATIONS.map((n, i) => (
+                  notifications.map((n, i) => (
                     <Text key={i} style={styles.notifItem}>{n}</Text>
                   ))
                 )}

@@ -18,6 +18,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useAppTheme } from '../../context/ThemeContext';
+import api from '../../services/api';
+import { ENDPOINTS } from '../../constants/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const MIN_IMAGES = 6; // mínimo requerido
@@ -120,7 +122,7 @@ export default function CargarBienScreen({ navigation }) {
   const [pdfFile,     setPdfFile]     = useState(null); // { name, uri, size }
 
   // Paso 2
-  const [images,      setImages]      = useState([]); // array de { uri }
+  const [images,      setImages]      = useState([]); // array de { uri, base64 }
 
   // Modal
   const [modalVisible,  setModalVisible]  = useState(false);
@@ -171,16 +173,19 @@ export default function CargarBienScreen({ navigation }) {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      // TODO: reemplazar con llamada real a la API
-      // const formData = new FormData();
-      // formData.append('nombre', nombre);
-      // formData.append('descripcion', descripcion);
-      // if (pdfFile) formData.append('pdf', { uri: pdfFile.uri, name: pdfFile.name, type: 'application/pdf' });
-      // images.forEach((img, i) => formData.append('fotos', { uri: img.uri, name: `foto_${i}.jpg`, type: 'image/jpeg' }));
-      // await axios.post('/api/productos', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      // ── CONEXIÓN BACKEND — crear producto ────────────────────────────
+      // POST /api/products
+      // El backend espera: { nombre, descripcionCompleta, fotosBase64: string[] }
+      // Nota: El PDF de ficha técnica aún no es procesado por el backend en esta versión,
+      // pero lo dejamos preparado en el frontend.
+      const payload = {
+        nombre: nombre,
+        descripcionCompleta: descripcion,
+        fotosBase64: images.map(img => img.base64).filter(Boolean),
+      };
 
-      // Simulación (quitar cuando haya API real):
-      await new Promise(resolve => setTimeout(resolve, 1200));
+      await api.post(ENDPOINTS.PRODUCTS, payload);
+      // ─────────────────────────────────────────────────────────────────
 
       setSubmitError(null);
     } catch (e) {
@@ -221,9 +226,10 @@ export default function CargarBienScreen({ navigation }) {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsMultipleSelection: true,
       quality: 0.85,
+      base64: true,
     });
     if (!result.canceled && result.assets?.length > 0) {
-      setImages(prev => [...prev, ...result.assets.map(a => ({ uri: a.uri }))]);
+      setImages(prev => [...prev, ...result.assets.map(a => ({ uri: a.uri, base64: a.base64 }))]);
     }
   };
 
