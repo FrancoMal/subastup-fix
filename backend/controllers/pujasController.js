@@ -14,6 +14,8 @@ const CATEGORIAS_SIN_LIMITE = ['oro', 'platino'];
 
 // Orden de jerarquía de categorías (mayor índice = más alta)
 const ORDEN_CATEGORIAS = ['comun', 'especial', 'plata', 'oro', 'platino'];
+const MENSAJE_INICIAL_GANADOR =
+  '¡Felicitaciones! Ganaste esta subasta. En breve nos comunicaremos para coordinar el pago y la entrega del artículo.';
 
 function categoriaAlcanza(categoriaUsuario, categoriaSubasta) {
   const idxUsuario = ORDEN_CATEGORIAS.indexOf(categoriaUsuario);
@@ -35,6 +37,8 @@ exports.getEstadoPuja = async (req, res) => {
       include: {
         productos: {
           select: {
+            identificador:        true,
+            revisor:              true,
             descripcionCompleta: true,
             fotos:              { take: 3 },
             detalle:            true,
@@ -63,13 +67,14 @@ exports.getEstadoPuja = async (req, res) => {
       return res.status(404).json({ ok: false, message: 'Ítem no encontrado.' });
 
     if (item.detalle?.cerrado)
-      return res.json({
-        ok:          true,
-        cerrado:     true,
-        message:     'Esta subasta ya finalizó.',
-        pujaActual:  item.pujos[0]?.importe || item.precioBase,
-        moneda:      item.detalle?.moneda || 'ARS',
-      });
+        return res.json({
+          ok:          true,
+          cerrado:     true,
+          message:     'Esta subasta ya finalizó.',
+          pujaActual:  item.pujos[0]?.importe || item.precioBase,
+          moneda:      item.detalle?.moneda || 'ARS',
+          ganadorId:   item.pujos[0]?.asistentes?.cliente || null,
+        });
 
     // Calcular tiempo restante
     let tiempoRestante = TIMER_SEGUNDOS;
@@ -82,7 +87,7 @@ exports.getEstadoPuja = async (req, res) => {
 
     // Si el timer expiró y hay pujas → cerrar el ítem automáticamente
     if (tiempoRestante === 0 && item.pujos.length > 0) {
-      await prisma.$transaction(async (tx) => {
+      const cierre = await prisma.$transaction(async (tx) => {
         // Marcar ítem como cerrado
         await tx.itemsCatalogo.update({
           where: { identificador: itemId },
@@ -95,6 +100,44 @@ exports.getEstadoPuja = async (req, res) => {
           where: { identificador: item.pujos[0].identificador },
           data:  { ganador: 'si' },
         });
+
+        const ganadorId = item.pujos[0].asistentes.cliente;
+        const productoId = item.productos.identificador;
+        let conversacion = await tx.conversaciones.findFirst({
+          where: { producto: productoId },
+        });
+
+        // La tabla base admite una conversación por producto. Para una subasta
+        // sin conversación previa, se crea el canal persistente del ganador.
+        if (!conversacion) {
+          conversacion = await tx.conversaciones.create({
+            data: {
+              producto: productoId,
+              duenio:   ganadorId,
+              empleado: item.productos.revisor,
+              estado:   'activo',
+            },
+          });
+          await tx.mensajes.create({
+            data: {
+              conversacion: conversacion.identificador,
+              emisor:       item.productos.revisor,
+              texto:        MENSAJE_INICIAL_GANADOR,
+              leido:        false,
+            },
+          });
+        }
+
+        await tx.notificaciones.create({
+          data: {
+            persona: ganadorId,
+            titulo:  '¡Ganaste la subasta!',
+            mensaje: `Ganaste ${item.productos.detalle?.nombre || 'el artículo'}. Abrí Mensajes para continuar.`,
+            tipo:    'subasta_ganada',
+          },
+        });
+
+        return { ganadorId, conversacionId: conversacion.identificador };
       });
 
       return res.json({
@@ -104,6 +147,8 @@ exports.getEstadoPuja = async (req, res) => {
         pujaActual: item.pujos[0].importe,
         moneda:     item.detalle?.moneda || 'ARS',
         ganador:    item.pujos[0].asistentes?.clientes?.personas?.nombre || null,
+        ganadorId:  cierre.ganadorId,
+        conversacionId: cierre.conversacionId,
       });
     }
 
@@ -200,6 +245,7 @@ exports.pujar = async (req, res) => {
       if (categoriaSubasta && !categoriaAlcanza(req.user.categoria, categoriaSubasta)) {
         const e = new Error(`Tu categoría (${req.user.categoria}) no te permite pujar en subastas de categoría ${categoriaSubasta}.`);
         e.status = 403;
+        e.codigo = 'CATEGORIA_INSUFICIENTE';
         throw e;
       }
 
@@ -211,6 +257,7 @@ exports.pujar = async (req, res) => {
       if (!tieneMetodoVerificado) {
         const e = new Error('Necesitás al menos un medio de pago verificado por la empresa para poder pujar.');
         e.status = 403;
+        e.codigo = 'METODO_PAGO_REQUERIDO';
         throw e;
       }
 
@@ -320,7 +367,7 @@ exports.pujar = async (req, res) => {
 
   } catch (err) {
     if (err.status) {
-      return res.status(err.status).json({ ok: false, message: err.message, ...(err.extra || {}) });
+      return res.status(err.status).json({ ok: false, message: err.message, codigo: err.codigo, ...(err.extra || {}) });
     }
     console.error('pujar error:', err);
     return res.status(500).json({ ok: false, message: 'Error al registrar la puja.' });

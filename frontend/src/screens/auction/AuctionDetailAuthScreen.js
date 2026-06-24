@@ -159,6 +159,9 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
   // ── Datos en tiempo real ──────────────────────
   const [ultimaPujaLocal,    setUltimaPujaLocal]    = useState(0);
   const [ultimoPujadorId,    setUltimoPujadorId]    = useState(null); // TODO BACKEND: llega del WebSocket
+  const [verificandoRequisitos, setVerificandoRequisitos] = useState(false);
+  const [modalRestriccion, setModalRestriccion] = useState(false);
+  const [mensajeRestriccion, setMensajeRestriccion] = useState('');
 
   // ── CONEXIÓN BACKEND — detalle de subasta ───────────────────────────
   useEffect(() => {
@@ -223,25 +226,34 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
   const [modalGanador,   setModalGanador]   = useState(false);
   const [modalPerdedor,  setModalPerdedor]  = useState(false);
   const montadoRef = useRef(true); // evita disparar modales si el usuario ya navegó a otra pantalla
+  const cierreProcesadoRef = useRef(false);
 
   useEffect(() => {
     montadoRef.current = true;
     return () => { montadoRef.current = false; };
   }, []);
 
-  const manejarFinSubasta = useCallback(() => {
+  const manejarFinSubasta = useCallback(async () => {
     detenerContador();
     if (!montadoRef.current) return; // el usuario ya salió de la pantalla, no hacer nada
-    // TODO BACKEND: en lugar de comparar ultimoPujadorId local, escuchar evento
-    // 'subasta_finalizada' del WebSocket con { ganadorId, auctionId }
-    // Si el usuario ganó: enviar push notification (el backend la maneja)
-    // y navegar luego a Home también desde el backend via push notification
-    if (ultimoPujadorId === MI_USER_ID) {
-      setModalGanador(true);
-    } else {
-      setModalPerdedor(true);
+    try {
+      const estado = await api.get(ENDPOINTS.BID_STATUS(producto.itemId));
+      if (!estado?.cerrado) {
+        setSegundosRestantes(estado?.tiempoRestante ?? DURACION_SUBASTA_SEGUNDOS);
+        return;
+      }
+      if (cierreProcesadoRef.current) return;
+      cierreProcesadoRef.current = true;
+      setProducto((actual) => ({ ...actual, estado: 'finalizado' }));
+      if (String(estado.ganadorId) === String(MI_USER_ID)) {
+        setModalGanador(true);
+      } else {
+        setModalPerdedor(true);
+      }
+    } catch (error) {
+      console.log('[AuctionDetail] Error al confirmar cierre:', error);
     }
-  }, [ultimoPujadorId, MI_USER_ID, detenerContador]);
+  }, [MI_USER_ID, detenerContador, producto?.itemId]);
 
   // El timer solo corre mientras esta pantalla tiene el foco.
   // Al navegar a otra pantalla se pausa; al volver se reanuda.
@@ -264,6 +276,27 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
       };
     }, [producto?.estado, manejarFinSubasta])
   );
+
+  // El servidor es la fuente de verdad para el cierre y el ganador.
+  useEffect(() => {
+    if (!producto?.itemId || producto.estado === 'finalizado') return undefined;
+    const refrescarEstado = async () => {
+      try {
+        const estado = await api.get(ENDPOINTS.BID_STATUS(producto.itemId));
+        if (estado?.cerrado) {
+          manejarFinSubasta();
+          return;
+        }
+        setUltimaPujaLocal(Number(estado?.pujaActual ?? ultimaPujaLocal));
+        setSegundosRestantes(estado?.tiempoRestante ?? DURACION_SUBASTA_SEGUNDOS);
+      } catch (error) {
+        console.log('[AuctionDetail] Error al actualizar puja:', error);
+      }
+    };
+    refrescarEstado();
+    const intervalo = setInterval(refrescarEstado, 5000);
+    return () => clearInterval(intervalo);
+  }, [producto?.itemId, producto?.estado, manejarFinSubasta]);
 
   // Porcentaje para la barra visual
   const porcentajeTiempo = segundosRestantes / DURACION_SUBASTA_SEGUNDOS;
@@ -289,23 +322,32 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
   const [montoPuja,      setMontoPuja]      = useState('');
 
   // ── Método de pago ────────────────────────────
-  // TODO BACKEND: eliminar DEV_TIENE_METODO_PAGO y reemplazar tieneMétodoPago por:
-  //   const { data } = await api.get(ENDPOINTS.PAYMENT_METHODS)
-  //   const tieneMetodoPago = data.length > 0
-  // ⚠️  Para testear SIN backend: cambiar DEV_TIENE_METODO_PAGO a false → aparece el modal
-  const DEV_TIENE_METODO_PAGO = true; // TODO BACKEND: borrar esta línea
   const [modalSinMetodoPago, setModalSinMetodoPago] = useState(false);
+
+  const abrirTecladoPuja = async () => {
+    try {
+      setVerificandoRequisitos(true);
+      const data = await api.get(ENDPOINTS.PAYMENT_METHODS);
+      const metodos = Array.isArray(data?.metodos) ? data.metodos : [];
+      if (!metodos.some((metodo) => metodo.verificado)) {
+        setModalSinMetodoPago(true);
+        return;
+      }
+      setTecladoVisible(true);
+      setTimeout(() => {
+        scrollRef.current?.scrollTo({ y: pujaOffsetY.current - 20, animated: true });
+      }, 50);
+    } catch (error) {
+      mostrarToast('No se pudo verificar tu método de pago. Intentá nuevamente.');
+    } finally {
+      setVerificandoRequisitos(false);
+    }
+  };
 
   const handleTecla = async (tecla) => {
     if (tecla === '←') {
       setMontoPuja((prev) => prev.slice(0, -1));
     } else if (tecla === 'Pujar') {
-      // // TODO BACKEND: reemplazar DEV_TIENE_METODO_PAGO por llamada real a la API
-      // if (!DEV_TIENE_METODO_PAGO) {
-      //   setTecladoVisible(false);
-      //   setModalSinMetodoPago(true);
-      //   return;
-      // }
       const monto = Number(montoPuja.replace(',', '.'));
       if (!monto || monto <= ultimaPujaLocal) {
         // Monto inválido o menor/igual a la puja actual — no se permite
@@ -322,7 +364,15 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
         resetContador();
       } catch (error) {
         console.log('[AuctionDetail] Error al pujar:', error);
-        mostrarToast(error?.response?.data?.message || 'Error al enviar puja');
+        const respuesta = error?.response?.data;
+        if (respuesta?.codigo === 'METODO_PAGO_REQUERIDO') {
+          setModalSinMetodoPago(true);
+        } else if (respuesta?.codigo === 'CATEGORIA_INSUFICIENTE') {
+          setMensajeRestriccion(respuesta.message);
+          setModalRestriccion(true);
+        } else {
+          mostrarToast(respuesta?.message || 'Error al enviar puja');
+        }
       }
       // ──────────────────────────────────────────────────────────────────
       setTecladoVisible(false);
@@ -518,20 +568,11 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
               <TouchableOpacity
                 style={styles.nuevaPujaPanel}
                 onPress={() => {
-                  // TODO BACKEND: reemplazar DEV_TIENE_METODO_PAGO por llamada real a la API
-                  if (!DEV_TIENE_METODO_PAGO) {
-                    setModalSinMetodoPago(true);
-                    return;
-                  }
-                  setTecladoVisible(true);
-                  // Scroll hasta el pujaBloque para que el teclado no lo tape
-                  setTimeout(() => {
-                    scrollRef.current?.scrollTo({ y: pujaOffsetY.current - 20, animated: true });
-                  }, 50);
+                  if (!verificandoRequisitos) abrirTecladoPuja();
                 }}
                 activeOpacity={0.75}
               >
-                <Text style={styles.nuevaPujaLabel}>Tu puja</Text>
+                <Text style={styles.nuevaPujaLabel}>{verificandoRequisitos ? 'Verificando...' : 'Tu puja'}</Text>
                 <View style={styles.nuevaPujaInputRow}>
                   {montoPuja ? (
                     <Text style={styles.nuevaPujaMoneda}>{producto.moneda}</Text>
@@ -643,10 +684,7 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
       )}
 
       {/* ══════════════════════════════════════════════
-          MODAL SIN MÉTODO DE PAGO
-          TODO BACKEND: este modal se dispara cuando la API confirma que el usuario
-          no tiene métodos de pago registrados. Borrar DEV_TIENE_METODO_PAGO y
-          reemplazar por: const tieneMetodoPago = (await api.get(ENDPOINTS.PAYMENT_METHODS)).data.length > 0
+          MODAL SIN MÉTODO DE PAGO APROBADO
       ══════════════════════════════════════════════ */}
       <Modal visible={modalSinMetodoPago} transparent animationType="fade" onRequestClose={() => setModalSinMetodoPago(false)}>
         <TouchableWithoutFeedback onPress={() => setModalSinMetodoPago(false)}>
@@ -666,10 +704,10 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
                     <Ionicons name="card-outline" size={44} color="#8b0000" />
                   </View>
                   <Text style={styles.sinPagoTitulo}>
-                    Necesitás un método de pago registrado para poder pujar.
+                    Necesitás un método de pago aprobado para poder pujar.
                   </Text>
                   <Text style={styles.sinPagoSubtitulo}>
-                    Agregá una tarjeta o medio de pago para participar en subastas.
+                    Agregá un medio de pago y esperá su verificación para participar en subastas.
                   </Text>
                   <TouchableOpacity
                     style={styles.sinPagoBtn}
@@ -684,6 +722,34 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
                   >
                     <Ionicons name="card-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
                     <Text style={styles.sinPagoBtnText}>Métodos de pago</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* La autorización de categoría se valida definitivamente en el backend. */}
+      <Modal visible={modalRestriccion} transparent animationType="fade" onRequestClose={() => setModalRestriccion(false)}>
+        <TouchableWithoutFeedback onPress={() => setModalRestriccion(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.modalCard, styles.modalSinPagoCard]}>
+                <TouchableOpacity style={styles.modalCloseX} onPress={() => setModalRestriccion(false)}>
+                  <Ionicons name="close" size={22} color="#1A1A1A" />
+                </TouchableOpacity>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalHeaderText}>Categoría no habilitada</Text>
+                </View>
+                <View style={styles.modalBody}>
+                  <View style={styles.sinPagoIconCircle}>
+                    <Ionicons name="lock-closed-outline" size={44} color="#8b0000" />
+                  </View>
+                  <Text style={styles.sinPagoTitulo}>No podés participar en esta subasta.</Text>
+                  <Text style={styles.sinPagoSubtitulo}>{mensajeRestriccion}</Text>
+                  <TouchableOpacity style={styles.sinPagoBtn} onPress={() => setModalRestriccion(false)}>
+                    <Text style={styles.sinPagoBtnText}>Entendido</Text>
                   </TouchableOpacity>
                 </View>
               </View>

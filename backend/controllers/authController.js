@@ -118,6 +118,7 @@ exports.login = async (req, res) => {
       token,
       usuario: {
         registroId: registro.identificador,
+        personaId:  registro.personas.identificador,
         nombre:     registro.personas.nombre,
         documento:  registro.personas.documento,
         email:      registro.email,

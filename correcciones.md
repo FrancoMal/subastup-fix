@@ -128,3 +128,14 @@
 - Cambio: se importó `ActivityIndicator`, eliminando el error de render de la carga en el detalle autenticado.
 - Cambio: el detalle adapta la respuesta `{ subasta, articulos }` de `GET /api/auctions/:id`, consulta `GET /api/bids/:itemId/status` para mostrar datos y precio actuales, y envía la puja con el `itemId` correcto.
 - Cambio: el seed deja las subastas demo en estado `abierta` y suma dos pujas de ejemplo para las categorías Oro y Plata. La última ejecución creó esas cuatro pujas.
+
+## Flujo de participación, ganador y notificaciones
+
+- Estado: implementado; pendiente de verificación integrada contra Render/Supabase.
+- Archivos: `backend/controllers/pujasController.js`, `backend/controllers/pagosController.js`, `backend/controllers/authController.js`, `frontend/src/store/authStore.js`, `frontend/src/screens/auction/AuctionDetailAuthScreen.js` y `frontend/src/screens/tabs/HomeAuthenticatedScreen.js`.
+- Regla de pago: al intentar ingresar una puja, la app consulta los métodos de pago reales y solo habilita el teclado si existe uno verificado. Si no existe o el backend lo rechaza, aparece el popup de método de pago requerido.
+- Regla de categoría: se mantiene la navegación y consulta libre de cualquier subasta, pero al confirmar una puja el backend rechaza categorías superiores. El frontend muestra un popup con el motivo devuelto, sin registrar la puja.
+- Cierre: la pantalla consulta periódicamente el estado del ítem; al expirar el plazo, el backend marca el ítem y la puja ganadora dentro de una transacción.
+- Ganador: al cerrar, el backend crea una conversación persistente para el ganador —si no existía una para el producto— con un mensaje inicial provisorio, y registra una notificación `subasta_ganada` sin leer. El texto definitivo de términos podrá reemplazar el mensaje provisorio cuando sea provisto.
+- Interfaz: el popup de ganador se decide con el `ganadorId` confirmado por el backend; al aceptar vuelve a Inicio. La campana de Inicio obtiene `data.notificaciones`, muestra el detalle y un contador de no leídas.
+- Compatibilidad: no se modificó ninguna tabla base ni se alteraron rutas HTTP existentes; solo se enriquecieron respuestas ya existentes con los datos necesarios para el flujo.

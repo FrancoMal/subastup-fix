@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,9 +14,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import useAuthStore from '../../store/authStore';
 import { useAppTheme } from '../../context/ThemeContext';
-import { useEffect } from 'react';
 import api from '../../services/api';
 import { ENDPOINTS } from '../../constants/api';
 
@@ -75,18 +75,22 @@ export default function HomeAuthenticatedScreen({ navigation }) {
   // ── Backend Notifications ────────────────────
   const [notifications, setNotifications] = useState([]);
 
-  useEffect(() => {
-    const fetchNotifs = async () => {
+  const fetchNotifs = useCallback(async () => {
       try {
         const data = await api.get(ENDPOINTS.NOTIFICATIONS);
-        // data usually contains [{ mensaje: '...' }, ...]
-        setNotifications(data?.map(n => n.mensaje || n.titulo || JSON.stringify(n)) || []);
+        setNotifications(Array.isArray(data?.notificaciones) ? data.notificaciones : []);
       } catch (err) {
         console.log('Error fetching notifications:', err);
       }
-    };
-    fetchNotifs();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchNotifs();
+    }, [fetchNotifs])
+  );
+
+  const notificacionesSinLeer = notifications.filter((notificacion) => !notificacion.leido).length;
 
   // ── Hamburger helpers ────────────────────────
   const openMenu = () => {
@@ -161,6 +165,11 @@ export default function HomeAuthenticatedScreen({ navigation }) {
 
         <TouchableOpacity style={styles.headerIcon} onPress={openNotif}>
           <Ionicons name="notifications-outline" size={26} color={theme.secondary} />
+          {notificacionesSinLeer > 0 && (
+            <View style={styles.notificationBadge}>
+              <Text style={styles.notificationBadgeText}>{notificacionesSinLeer > 9 ? '9+' : notificacionesSinLeer}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -259,8 +268,8 @@ export default function HomeAuthenticatedScreen({ navigation }) {
                 {notifications.length === 0 ? (
                   <Text style={[styles.notifEmpty, { color: theme.placeholder }]}>{'<<No hay notificaciones>>'}</Text>
                 ) : (
-                  notifications.map((n, i) => (
-                    <Text key={i} style={styles.notifItem}>{n}</Text>
+                  notifications.map((n) => (
+                    <Text key={n.identificador} style={styles.notifItem}>{n.titulo}: {n.mensaje}</Text>
                   ))
                 )}
               </View>
@@ -369,6 +378,11 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F0F0F0',
   },
   headerIcon: { padding: 4, width: 40 },
+  notificationBadge: {
+    position: 'absolute', top: 2, right: 0, minWidth: 16, height: 16,
+    borderRadius: 8, backgroundColor: '#8b0000', alignItems: 'center', justifyContent: 'center',
+  },
+  notificationBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
   logo:       { width: '45%', height: 32, alignSelf: 'center' },
 
   scroll:        { flex: 1 },

@@ -26,6 +26,7 @@ exports.listarMetodos = async (req, res) => {
       const base = {
         id:           m.identificador,
         tipo:         m.tipo,
+        verificado:   m.verificado,
         fechaCreacion: m.fechaCreacion,
       };
 

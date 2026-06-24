@@ -25,9 +25,12 @@ const useAuthStore = create((set) => ({
       // El backend devuelve { ok, token, usuario: { nombre, documento, email, registroId } }
       // @TASK: Conserva el email devuelto por login para las pantallas que usan authStore.
       const userData = {
-        id: data.usuario.registroId,
-        name: data.usuario.nombre,
-        email: data.usuario.email,
+        id:        data.usuario.personaId ?? data.usuario.registroId,
+        registroId: data.usuario.registroId,
+        name:      data.usuario.nombre,
+        email:     data.usuario.email,
+        categoria: data.usuario.categoria,
+        rol:       data.usuario.rol,
       };
       await AsyncStorage.setItem('token', data.token);
       await AsyncStorage.setItem('user', JSON.stringify(userData));
