@@ -9,10 +9,13 @@ import {
   Modal,
   Image,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import api from '../../services/api';
+import { ENDPOINTS } from '../../constants/api';
 
 // ─── Modal Confirmacion ──────────────────────────────────────────────────────
 const SaveConfirmModal = ({ visible, variant, title, message, onAccept }) => {
@@ -69,6 +72,8 @@ export default function AgregarMetodoPagoScreen({ navigation }) {
   // Modal State
   const [modalVisible, setModalVisible] = useState(false);
   const [modalConfig, setModalConfig] = useState({ variant: 'success', title: '', message: '' });
+  // @TASK: Evita envíos duplicados mientras el backend procesa el método.
+  const [guardando, setGuardando] = useState(false);
 
   // Tarjeta State
   const [titular, setTitular] = useState('');
@@ -126,9 +131,12 @@ export default function AgregarMetodoPagoScreen({ navigation }) {
     let result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
       quality: 1,
+      // @TASK: Obtiene la imagen en base64 para enviarla al endpoint de cheques.
+      base64: true,
     });
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      setFotoCheque(result.assets[0].uri);
+      // @TASK: Conserva la URI para la vista previa y base64 para persistir el cheque.
+      setFotoCheque({ uri: result.assets[0].uri, base64: result.assets[0].base64 });
     }
   };
 
@@ -142,28 +150,65 @@ export default function AgregarMetodoPagoScreen({ navigation }) {
     isValid = bancoCheque.trim().length > 0 && fechaPago.trim().length === 10 && sucursal.trim().length > 0 && numeroCheque.trim().length > 0 && fotoCheque !== null;
   }
 
-  const handleFinalizar = () => {
+  // @API: Envía el formulario al endpoint correspondiente según el tipo seleccionado.
+  const handleFinalizar = async () => {
     if (!isValid) return;
-    if (activeTab === 'tarjeta') {
-      setModalConfig({
-        variant: 'success',
-        title: 'Datos guardados correctamente',
-        message: 'Tus datos de la tarjeta fueron guardados de forma segura.',
-      });
-    } else if (activeTab === 'banco') {
-      setModalConfig({
-        variant: 'review',
-        title: 'Datos guardados y en revision',
-        message: 'El banco verificará la cuenta antes de habilitarla.',
-      });
-    } else {
-      setModalConfig({
-        variant: 'review',
-        title: 'Datos guardados y en revision',
-        message: 'Revisaremos la información de tu cheque antes de habilitarlo.',
-      });
+    try {
+      setGuardando(true);
+
+      if (activeTab === 'tarjeta') {
+        const [mesVencimiento, anioCorto] = fechaVencimiento.split('/');
+        // @API: POST /api/settings/payment-methods/card usa el contrato de tarjetas del backend.
+        await api.post(ENDPOINTS.PAYMENT_CARD, {
+          titular,
+          numeroTarjeta: numeroTarjeta.replace(/\s/g, ''),
+          mesVencimiento,
+          anioVencimiento: `20${anioCorto}`,
+          codigoSeguridad: codSeguridad,
+          direccion,
+          codigoPostal,
+          localidad,
+        });
+        setModalConfig({
+          variant: 'success',
+          title: 'Datos guardados correctamente',
+          message: 'Tus datos de la tarjeta fueron guardados de forma segura.',
+        });
+      } else if (activeTab === 'banco') {
+        // @API: POST /api/settings/payment-methods/bank guarda una cuenta bancaria.
+        await api.post(ENDPOINTS.PAYMENT_BANK, {
+          cbu,
+          alias,
+          titular: titularBanco,
+        });
+        setModalConfig({
+          variant: 'review',
+          title: 'Datos guardados y en revision',
+          message: 'El banco verificará la cuenta antes de habilitarla.',
+        });
+      } else {
+        const [dia, mes, anio] = fechaPago.split('/');
+        // @API: POST /api/settings/payment-methods/check recibe la fecha en formato ISO.
+        await api.post(ENDPOINTS.PAYMENT_CHECK, {
+          nombreBanco: bancoCheque,
+          fechaPago: `${anio}-${mes}-${dia}`,
+          numeroSucursal: sucursal,
+          numeroCheque,
+          imagen: fotoCheque?.base64 ? `data:image/jpeg;base64,${fotoCheque.base64}` : undefined,
+        });
+        setModalConfig({
+          variant: 'review',
+          title: 'Datos guardados y en revision',
+          message: 'Revisaremos la información de tu cheque antes de habilitarlo.',
+        });
+      }
+
+      setModalVisible(true);
+    } catch (error) {
+      Alert.alert('Error', error?.response?.data?.message || 'No se pudo guardar el método de pago.');
+    } finally {
+      setGuardando(false);
     }
-    setModalVisible(true);
   };
 
   const handleModalAccept = () => {
@@ -251,7 +296,7 @@ export default function AgregarMetodoPagoScreen({ navigation }) {
               <Text style={styles.campoLabel}>Cargar imagen de cheque</Text>
               <TouchableOpacity style={styles.uploadCaja} onPress={handleTomarFoto} activeOpacity={0.8}>
                 {fotoCheque ? (
-                   <Image source={{ uri: fotoCheque }} style={styles.imagenPreview} />
+                   <Image source={{ uri: fotoCheque.uri }} style={styles.imagenPreview} />
                 ) : (
                   <>
                     <View style={styles.uploadIconoCircular}>
@@ -271,11 +316,15 @@ export default function AgregarMetodoPagoScreen({ navigation }) {
         <View style={styles.btnFinalizarContainer}>
           <TouchableOpacity
             style={[styles.btnFinalizar, !isValid && styles.btnFinalizarDisabled]}
-            disabled={!isValid}
+            disabled={!isValid || guardando}
             onPress={handleFinalizar}
             activeOpacity={0.85}
           >
-            <Text style={styles.btnFinalizarText}>Finalizar</Text>
+            {guardando ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Text style={styles.btnFinalizarText}>Finalizar</Text>
+            )}
           </TouchableOpacity>
         </View>
 

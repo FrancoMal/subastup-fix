@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import api from '../../services/api';
+import { ENDPOINTS } from '../../constants/api';
 
 // ─── Pantalla de detalle de un método de pago ────────────────────────────────
 //
@@ -42,11 +44,9 @@ export default function MetodoDePagoDetalleScreen({ navigation, route }) {
   const handleEliminar = async () => {
     setEliminando(true);
     try {
-      // TODO BACKEND: llamar a la API para eliminar el método de pago
-      //   await api.delete(ENDPOINTS.PAYMENT_METHOD(metodo.id));
-      //
-      // Simulación de delay de red:
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      // @MOCK: await new Promise((resolve) => setTimeout(resolve, 800));
+      // @API: DELETE /api/settings/payment-methods/:id desactiva el método del usuario.
+      await api.delete(ENDPOINTS.PAYMENT_BY_ID(metodo.id));
 
       setModalVisible(false);
       // Volver a la lista y refrescar
@@ -57,8 +57,7 @@ export default function MetodoDePagoDetalleScreen({ navigation, route }) {
     } catch (error) {
       setEliminando(false);
       setModalVisible(false);
-      // TODO BACKEND: manejar errores de red con el mensaje real de la API
-      Alert.alert('Error', 'No se pudo eliminar el método de pago. Intentá de nuevo.');
+      Alert.alert('Error', error?.response?.data?.message || 'No se pudo eliminar el método de pago. Intentá de nuevo.');
     }
   };
 

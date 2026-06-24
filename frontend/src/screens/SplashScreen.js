@@ -8,6 +8,7 @@ import {
 
 // Paleta de colores y espaciado del proyecto
 import { COLORS, SPACING } from '../constants/colors';
+import { useAppTheme } from '../context/ThemeContext';
 
 // Imagen del logo ubicada en assets/images/
 const LOGO = require('../assets/images/banner_principal.jpeg');
@@ -23,6 +24,7 @@ const LOGO = require('../assets/images/banner_principal.jpeg');
  *             termina su animación/espera (útil para navegar al siguiente flow).
  */
 export default function SplashScreen({ onReady }) {
+  const { theme } = useAppTheme();
 
   /*
    * Si se pasa la prop onReady, esperamos un breve instante
@@ -46,7 +48,7 @@ export default function SplashScreen({ onReady }) {
      * Los tres bloques (top / center / bottom) dividen la pantalla
      * en tercios lógicos usando flex para centrar el logo visualmente.
      */
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.white }]}>
 
       {/* Espacio superior — empuja el logo hacia el centro óptico */}
       <View style={styles.spacerTop} />
@@ -69,7 +71,7 @@ export default function SplashScreen({ onReady }) {
       <View style={styles.spinnerWrapper}>
         <ActivityIndicator
           size="large"
-          color={COLORS.primary}
+          color={theme.primary}
           accessibilityLabel="Cargando"
         />
       </View>

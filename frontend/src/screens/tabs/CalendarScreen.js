@@ -90,7 +90,8 @@ export default function CalendarScreen({ navigation }) {
           `${ENDPOINTS.CALENDAR}?month=${mes + 1}&year=${anio}`
         );
         // Guardar en estado para reemplazar SUBASTAS_MOCK
-        setSubastas(data || []);
+        // El backend devuelve { ok: true, dias: [] } — extraer el array dias
+        setSubastas(data?.dias || []);
       } catch (error) {
         // Si falla el backend, dejar el array vacío (no mostrar datos falsos)
         console.log('[CalendarScreen] Error al cargar calendario:', error);

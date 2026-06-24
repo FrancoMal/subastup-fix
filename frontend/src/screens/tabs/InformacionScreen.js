@@ -9,6 +9,7 @@ import {
   SafeAreaView,
   StatusBar,
   Dimensions,
+  Alert,
 } from 'react-native';
 import {
   GraficoEvolucion,
@@ -107,6 +108,8 @@ const HistorialItem = ({ item, onPress }) => (
 export default function InformacionScreen({ navigation }) {
   const [stats, setStats] = useState(null);
   const [historial, setHistorial] = useState([]);
+  // @TASK: Distingue los skeletons iniciales del estado vacío real del historial.
+  const [loadingHistorial, setLoadingHistorial] = useState(true);
   const [evolucionData, setEvolucionData] = useState(null);
   const [distData,      setDistData]      = useState(null);
 
@@ -165,9 +168,14 @@ export default function InformacionScreen({ navigation }) {
           // Devuelve array: [{ id, titulo, imagen, monto, estado, fecha }]
           // El campo 'estado' puede ser 'Ganada', 'Superada' o 'Perdida'
           const bids = await api.get(ENDPOINTS.MY_BIDS);
-          setHistorial(bids || []);
+          // @API: El backend devuelve las pujas dentro de la clave historial.
+          setHistorial(Array.isArray(bids?.historial) ? bids.historial : []);
         } catch(error) {
           console.log('[InformacionScreen] Error fetching stats or bids', error);
+          setHistorial([]);
+        } finally {
+          // @TASK: Habilita el mensaje vacío cuando la carga de pujas terminó.
+          setLoadingHistorial(false);
         }
       };
       loadStatsAndHistory();
@@ -176,8 +184,9 @@ export default function InformacionScreen({ navigation }) {
   );
 
   const handleVerArticulos = () => {
-    // navigation.navigate('MisArticulos');
-    console.log('Navegar a Mis Artículos en Subastas');
+    // @MOCK: console.log('Navegar a Mis Artículos en Subastas');
+    // @TASK: No existe una pantalla registrada que liste los artículos propios.
+    Alert.alert('Próximamente', 'Esta funcionalidad estará disponible pronto.');
   };
 
   const handleHistorialPress = (item) => {
@@ -243,7 +252,7 @@ export default function InformacionScreen({ navigation }) {
 
       {/* FlatList: solo el historial es scrolleable */}
       <FlatList
-        data={historial.length > 0 ? historial : [1, 2, 3].map(String)}
+        data={loadingHistorial ? [1, 2, 3].map(String) : historial}
         keyExtractor={(item) => (typeof item === 'object' ? item.id : item)}
         ListHeaderComponent={ListHeader}
         contentContainerStyle={styles.flatContent}
@@ -256,6 +265,13 @@ export default function InformacionScreen({ navigation }) {
           )
         }
         ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+        ListEmptyComponent={
+          !loadingHistorial ? (
+            <View style={styles.historialVacio}>
+              <Text style={styles.historialVacioTexto}>No tenés pujas registradas todavía.</Text>
+            </View>
+          ) : null
+        }
       />
     </SafeAreaView>
   );
@@ -449,5 +465,15 @@ const styles = StyleSheet.create({
     backgroundColor: GRAY_BG,
     borderRadius: 14,
     marginHorizontal: 16,
+  },
+  historialVacio: {
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+  },
+  historialVacioTexto: {
+    color: TEXT_SECONDARY,
+    fontSize: 15,
+    textAlign: 'center',
   },
 });

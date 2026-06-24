@@ -141,10 +141,9 @@ export default function ConfiguracionScreen({ navigation }) {
   const setIdioma          = useSettingsStore((s) => s.setIdioma);
   const theme              = darkTheme ? DARK_COLORS : COLORS;
   const { isDark }         = useAppTheme();
+  // @TASK: Obtiene los datos del usuario autenticado desde el estado global.
   const user               = useAuthStore((s) => s.user);
-  const email              = useAuthStore((s) => s.token
-    ? (user?.email ?? 'usuario@subastup.com')
-    : 'usuario@subastup.com');
+  // @MOCK: const email = useAuthStore((s) => s.token ? (user?.email ?? 'usuario@subastup.com') : 'usuario@subastup.com');
 
   const handleEliminarCuenta = () => {
     Alert.alert(
@@ -198,8 +197,10 @@ export default function ConfiguracionScreen({ navigation }) {
               </View>
             </View>
             <View style={styles.heroText}>
-              <Text style={styles.heroName}>{user?.name ?? 'Usuario'}</Text>
-              <Text style={styles.heroEmail}>{user?.email ?? email}</Text>
+              {/* @MOCK: <Text style={styles.heroName}>usuario</Text> */}
+              <Text style={styles.heroName}>{user?.name}</Text>
+              {/* @MOCK: <Text style={styles.heroEmail}>subastup.com</Text> */}
+              <Text style={styles.heroEmail}>{user?.email}</Text>
             </View>
             <View style={styles.heroPill}>
               <Ionicons name="star" size={12} color="#8b0000" />
@@ -227,7 +228,8 @@ export default function ConfiguracionScreen({ navigation }) {
           icon="hammer-outline"
           label="Mis subastas"
           sublabel="Historial y activas"
-          onPress={() => navigation.navigate('MisSubastas')}  // cambiar cuando este la pantalla de mis subastas
+          // @TASK: La pantalla MisSubastas no existe todavía en el navigator.
+          onPress={() => Alert.alert('Próximamente', 'Esta funcionalidad estará disponible pronto.')}
         />
 
         {/* ── Sección: Sistema ─────────────────── */}

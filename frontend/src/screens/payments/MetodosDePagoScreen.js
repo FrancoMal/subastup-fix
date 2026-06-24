@@ -1,13 +1,18 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   FlatList,
   StyleSheet,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import api from '../../services/api';
+import { ENDPOINTS } from '../../constants/api';
 
 // ─── Barra de navegación inferior ────────────────────────────────────────────
 const BOTTOM_NAV_TABS = [
@@ -21,16 +26,50 @@ const BOTTOM_NAV_TABS = [
 // TODO BACKEND: reemplazar por llamada real a la API:
 //   const { data } = await api.get(ENDPOINTS.PAYMENT_METHODS)
 //   setMetodosPago(data)
-const METODOS_PAGO_MOCK = [
-  { id: '1', nombre: 'Metodo de pago 1', tipo: 'tarjeta' },
-  { id: '2', nombre: 'Metodo de pago 2', tipo: 'banco' },
-  { id: '3', nombre: 'Metodo de pago 3', tipo: 'cheque' },
-  { id: '4', nombre: 'Metodo de pago 4', tipo: 'tarjeta' },
-];
+// @MOCK: const METODOS_PAGO_MOCK = [
+// @MOCK:   { id: '1', nombre: 'Metodo de pago 1', tipo: 'tarjeta' },
+// @MOCK:   { id: '2', nombre: 'Metodo de pago 2', tipo: 'banco' },
+// @MOCK:   { id: '3', nombre: 'Metodo de pago 3', tipo: 'cheque' },
+// @MOCK:   { id: '4', nombre: 'Metodo de pago 4', tipo: 'tarjeta' },
+// @MOCK: ];
+
+// @TASK: Genera el texto visible sin alterar los datos originales del método.
+const obtenerNombreMetodo = (metodo) => {
+  if (metodo.tipo === 'tarjeta') return `Tarjeta ${metodo.numeroTarjeta || ''}`.trim();
+  if (metodo.tipo === 'banco') return metodo.alias || `Cuenta ${metodo.cbu || ''}`.trim();
+  return `Cheque ${metodo.numeroCheque || ''}`.trim();
+};
 
 // ─── Pantalla ─────────────────────────────────────────────────────────────────
 export default function MetodosDePagoScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  // @TASK: Almacena únicamente los métodos devueltos por el backend.
+  const [metodosPago, setMetodosPago] = useState([]);
+  // @TASK: Controla el indicador de carga de la lista.
+  const [loading, setLoading] = useState(true);
+
+  // @API: GET /api/settings/payment-methods carga los métodos activos del usuario.
+  const cargarMetodos = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await api.get(ENDPOINTS.PAYMENT_METHODS);
+      const metodos = Array.isArray(data?.metodos) ? data.metodos : [];
+      // @TASK: Agrega el nombre de presentación que consume la lista.
+      setMetodosPago(metodos.map((metodo) => ({ ...metodo, nombre: obtenerNombreMetodo(metodo) })));
+    } catch (error) {
+      setMetodosPago([]);
+      Alert.alert('Error', error?.response?.data?.message || 'No se pudieron obtener los métodos de pago.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // @TASK: Recarga la lista al volver desde el alta o el detalle.
+  useFocusEffect(
+    useCallback(() => {
+      cargarMetodos();
+    }, [cargarMetodos])
+  );
 
   // ── Bottom nav handler ───────────────────────
   const handleBottomNav = (tabName) => {
@@ -92,24 +131,30 @@ export default function MetodosDePagoScreen({ navigation }) {
       <Text style={styles.sectionLabel}>TUS METODOS GUARDADOS</Text>
 
       {/* ── Lista de métodos de pago ─────────────── */}
-      <FlatList
-        data={METODOS_PAGO_MOCK}
-        keyExtractor={(item) => item.id}
-        renderItem={renderMetodo}
-        contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 120 }]}
-        showsVerticalScrollIndicator={false}
-        ItemSeparatorComponent={() => <View style={styles.itemSeparator} />}
-        ListEmptyComponent={renderEfectoVacio}
-        ListFooterComponent={() => (
-          <TouchableOpacity
-            style={styles.agregarBtn}
-            activeOpacity={0.85}
-            onPress={() => navigation.navigate('AgregarMetodoPago')}
-          >
-            <Text style={styles.agregarBtnText}>Agregar</Text>
-          </TouchableOpacity>
-        )}
-      />
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#8b0000" />
+        </View>
+      ) : (
+        <FlatList
+          data={metodosPago}
+          keyExtractor={(item) => String(item.id)}
+          renderItem={renderMetodo}
+          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 120, flexGrow: 1 }]}
+          showsVerticalScrollIndicator={false}
+          ItemSeparatorComponent={() => <View style={styles.itemSeparator} />}
+          ListEmptyComponent={renderEfectoVacio}
+          ListFooterComponent={() => (
+            <TouchableOpacity
+              style={styles.agregarBtn}
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('AgregarMetodoPago')}
+            >
+              <Text style={styles.agregarBtnText}>Agregar</Text>
+            </TouchableOpacity>
+          )}
+        />
+      )}
 
       {/* ══════════════════════════════════════════
           BARRA DE NAVEGACIÓN INFERIOR
@@ -144,6 +189,7 @@ export default function MetodosDePagoScreen({ navigation }) {
 // ─── Estilos modificados ──────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
   // Header corregido
   header: {

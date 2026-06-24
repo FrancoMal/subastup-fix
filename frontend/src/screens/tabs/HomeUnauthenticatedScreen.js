@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppTheme } from '../../context/ThemeContext';
 
 const LOGO             = require('../../assets/images/texto_appbar.jpeg');
 const IMG_PLACEHOLDER1 = require('../../assets/images/imagen_menu1.jpeg');
@@ -16,11 +17,12 @@ const IMG_PLACEHOLDER2 = require('../../assets/images/imagen_menu2.jpeg');
 
 export default function HomeUnauthenticatedScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const { theme } = useAppTheme();
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.white }]}>
 
-      <View style={styles.headerContainer}>
+      <View style={[styles.headerContainer, { backgroundColor: theme.white }]}>
         <Image source={LOGO} style={styles.logo} resizeMode="contain" />
       </View>
 
@@ -29,52 +31,52 @@ export default function HomeUnauthenticatedScreen({ navigation }) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.sectionTitle}>Subastas Especiales</Text>
+        <Text style={[styles.sectionTitle, { color: theme.secondary }]}>Subastas Especiales</Text>
         <View style={styles.auctionContainer}>
           <Image source={IMG_PLACEHOLDER1} style={styles.auctionImage} resizeMode="cover" />
           <TouchableOpacity
-            style={styles.verMasButton}
+            style={[styles.verMasButton, { backgroundColor: theme.primary }]}
             onPress={() => navigation.navigate('AuctionList', { auctionType: 'especial' })}
           >
-            <Text style={styles.verMasText}>Ver mas</Text>
+            <Text style={[styles.verMasText, { color: theme.white }]}>Ver mas</Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.sectionTitle}>Subastas Comunes</Text>
+        <Text style={[styles.sectionTitle, { color: theme.secondary }]}>Subastas Comunes</Text>
         <View style={styles.auctionContainer}>
           <Image source={IMG_PLACEHOLDER2} style={styles.auctionImage} resizeMode="cover" />
           <TouchableOpacity
-            style={styles.verMasButton}
+            style={[styles.verMasButton, { backgroundColor: theme.primary }]}
             onPress={() => navigation.navigate('AuctionList', { auctionType: 'comun' })}
           >
-            <Text style={styles.verMasText}>Ver mas</Text>
+            <Text style={[styles.verMasText, { color: theme.white }]}>Ver mas</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
 
       <View style={[styles.bottomNav, { paddingBottom: insets.bottom + 65 }]}>
         <TouchableOpacity
-          style={[styles.navItem, styles.navButton]}
+          style={[styles.navItem, styles.navButton, { backgroundColor: theme.primary }]}
           onPress={() => navigation.navigate('Auth')}
         >
-          <Ionicons name="log-in-outline" size={40} color="#FFFFFF" />
-          <Text style={styles.navLabel}>Login</Text>
+          <Ionicons name="log-in-outline" size={40} color={theme.white} />
+          <Text style={[styles.navLabel, { color: theme.white }]}>Login</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.navItemCenter, styles.navButton]}
+          style={[styles.navItemCenter, styles.navButton, { backgroundColor: theme.primary }]}
           onPress={() => navigation.navigate('Calendar')}
         >
-          <Ionicons name="calendar-outline" size={50} color="#FFFFFF" />
-          <Text style={styles.navLabel}>Calendario</Text>
+          <Ionicons name="calendar-outline" size={50} color={theme.white} />
+          <Text style={[styles.navLabel, { color: theme.white }]}>Calendario</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.navItem, styles.navButton]}
+          style={[styles.navItem, styles.navButton, { backgroundColor: theme.primary }]}
           onPress={() => navigation.navigate('Auth', { screen: 'Register' })}
         >
-          <Ionicons name="person-add-outline" size={40} color="#FFFFFF" />
-          <Text style={styles.navLabel}>Registrarse</Text>
+          <Ionicons name="person-add-outline" size={40} color={theme.white} />
+          <Text style={[styles.navLabel, { color: theme.white }]}>Registrarse</Text>
         </TouchableOpacity>
       </View>
     </View>

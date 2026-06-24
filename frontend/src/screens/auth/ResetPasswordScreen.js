@@ -18,11 +18,13 @@ import { useForm, Controller } from 'react-hook-form';
 import { COLORS, SPACING, RADIUS, FONTS } from '../../constants/colors';
 import api from '../../services/api';
 import { ENDPOINTS } from '../../constants/api';
+import { useAppTheme } from '../../context/ThemeContext';
 
 const LOGO = require('../../assets/images/banner_principal.jpeg');
 
 export default function ResetPasswordScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
+  const { theme } = useAppTheme();
   // resetToken viene de VerifyCodeScreen, que lo recibió del backend
   const resetToken = route?.params?.resetToken ?? '';
 
@@ -72,15 +74,15 @@ export default function ResetPasswordScreen({ navigation, route }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.flex}
     >
-      <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.white }]}>
 
         {/* Volver */}
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => navigation.navigate('Login')}
         >
-          <Ionicons name="arrow-back" size={22} color="#8b0000" />
-          <Text style={styles.backText}>Volver al login</Text>
+          <Ionicons name="arrow-back" size={22} color={theme.primary} />
+          <Text style={[styles.backText, { color: theme.primary }]}>Volver al login</Text>
         </TouchableOpacity>
 
         <ScrollView
@@ -95,8 +97,8 @@ export default function ResetPasswordScreen({ navigation, route }) {
           </View>
 
           {/* Nueva contraseña */}
-          <Text style={styles.label}>Nueva Contraseña</Text>
-          <View style={styles.passwordWrapper}>
+          <Text style={[styles.label, { color: theme.secondary }]}>Nueva Contraseña</Text>
+          <View style={[styles.passwordWrapper, { backgroundColor: theme.background, borderColor: theme.border }]}>
             <Controller
               control={control}
               name="nuevaPassword"
@@ -106,7 +108,7 @@ export default function ResetPasswordScreen({ navigation, route }) {
               }}
               render={({ field: { onChange, onBlur, value } }) => (
                 <TextInput
-                  style={styles.passwordInput}
+                  style={[styles.passwordInput, { color: theme.secondary }]}
                   onBlur={onBlur}
                   onChangeText={onChange}
                   value={value}
@@ -119,17 +121,17 @@ export default function ResetPasswordScreen({ navigation, route }) {
               <Ionicons
                 name={showPass1 ? 'eye-off-outline' : 'eye-outline'}
                 size={22}
-                color="#ffffff"
+                color={theme.white}
               />
             </TouchableOpacity>
           </View>
           {errors.nuevaPassword && (
-            <Text style={styles.fieldError}>{errors.nuevaPassword.message}</Text>
+            <Text style={[styles.fieldError, { color: theme.error }]}>{errors.nuevaPassword.message}</Text>
           )}
 
           {/* Repetir contraseña */}
-          <Text style={styles.label}>Repita la Contraseña</Text>
-          <View style={styles.passwordWrapper}>
+          <Text style={[styles.label, { color: theme.secondary }]}>Repita la Contraseña</Text>
+          <View style={[styles.passwordWrapper, { backgroundColor: theme.background, borderColor: theme.border }]}>
             <Controller
               control={control}
               name="confirmarPassword"
@@ -140,7 +142,7 @@ export default function ResetPasswordScreen({ navigation, route }) {
               }}
               render={({ field: { onChange, onBlur, value } }) => (
                 <TextInput
-                  style={styles.passwordInput}
+                  style={[styles.passwordInput, { color: theme.secondary }]}
                   onBlur={onBlur}
                   onChangeText={onChange}
                   value={value}
@@ -153,24 +155,24 @@ export default function ResetPasswordScreen({ navigation, route }) {
               <Ionicons
                 name={showPass2 ? 'eye-off-outline' : 'eye-outline'}
                 size={22}
-                color="#ffffff"
+                color={theme.white}
               />
             </TouchableOpacity>
           </View>
           {errors.confirmarPassword && (
-            <Text style={styles.fieldError}>{errors.confirmarPassword.message}</Text>
+            <Text style={[styles.fieldError, { color: theme.error }]}>{errors.confirmarPassword.message}</Text>
           )}
 
           {/* Guardar */}
           <TouchableOpacity
-            style={[styles.btnGuardar, loading && styles.btnDisabled]}
+            style={[styles.btnGuardar, { backgroundColor: theme.primary }, loading && styles.btnDisabled]}
             onPress={handleSubmit(onSubmit)}
             disabled={loading}
             activeOpacity={0.85}
           >
             {loading
-              ? <ActivityIndicator color="#FFFFFF" />
-              : <Text style={styles.btnGuardarText}>Guardar</Text>
+              ? <ActivityIndicator color={theme.white} />
+              : <Text style={[styles.btnGuardarText, { color: theme.white }]}>Guardar</Text>
             }
           </TouchableOpacity>
 

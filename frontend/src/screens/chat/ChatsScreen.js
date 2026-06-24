@@ -27,21 +27,23 @@ const MOCK_CHATS = [
 //  Fila de chat individual
 // ─────────────────────────────────────────────
 function ChatRow({ item, onPress }) {
-  const name = item.producto?.nombre || item.name || 'Chat';
+  const name = item.producto?.nombre || item.nombreProducto || item.name || 'Chat';
   const lastMessage = item.ultimoMensaje || item.lastMessage || '';
-  const unread = item.noLeidos ?? item.unread ?? 0;
+  const unread = item.sinLeer ?? item.noLeidos ?? item.unread ?? 0;
   
   // Format time simple
-  let timeStr = item.fechaUltimoMensaje || item.time || '';
-  if (item.fechaUltimoMensaje) {
-    const d = new Date(item.fechaUltimoMensaje);
+  let timeStr = item.ultimaFecha || item.fechaUltimoMensaje || item.time || '';
+  if (item.ultimaFecha || item.fechaUltimoMensaje) {
+    const d = new Date(item.ultimaFecha || item.fechaUltimoMensaje);
     if (!isNaN(d.getTime())) {
       timeStr = d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
     }
   }
 
   // Fallback image
-  const imageSource = item.image || require('../../assets/images/imagen_menu1.jpeg');
+  const imageSource = item.portada
+    ? { uri: `data:image/jpeg;base64,${item.portada}` }
+    : item.image || require('../../assets/images/imagen_menu1.jpeg');
 
   return (
     <TouchableOpacity style={styles.row} onPress={() => onPress(item, name)} activeOpacity={0.7}>
@@ -89,7 +91,10 @@ export default function ChatsScreen({ navigation }) {
     try {
       setLoading(true);
       const data = await api.get(ENDPOINTS.CHATS);
-      setChats(data || []);
+      // El backend devuelve { ok, conversaciones: [] }. Solo guardar listas:
+      // una respuesta de error no puede romper el render de la pantalla.
+      const conversaciones = data?.conversaciones || data?.chats || data?.data;
+      setChats(Array.isArray(conversaciones) ? conversaciones : []);
     } catch (error) {
       console.log('Error fetching chats, usando mocks:', error);
       setChats(MOCK_CHATS);
@@ -104,8 +109,8 @@ export default function ChatsScreen({ navigation }) {
     }, [])
   );
 
-  const filtered = chats.filter(c => {
-    const name = c.producto?.nombre || c.name || '';
+  const filtered = (Array.isArray(chats) ? chats : []).filter(c => {
+    const name = c.producto?.nombre || c.nombreProducto || c.name || '';
     const msg = c.ultimoMensaje || c.lastMessage || '';
     return name.toLowerCase().includes(search.toLowerCase()) ||
            msg.toLowerCase().includes(search.toLowerCase());
@@ -113,9 +118,9 @@ export default function ChatsScreen({ navigation }) {
 
   const handleOpenChat = (item, name) => {
     navigation.navigate('ChatDetail', { 
-      chatId: item.id, 
+      chatId: item.conversacionId || item.id,
       chatName: name,
-      estadoProducto: item.producto?.estado || 'Activo'
+      estadoProducto: item.producto?.estado || item.estado || 'Activo'
     });
   };
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,10 @@ import {
   TextInput,
   Alert,
   SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../../context/ThemeContext';
-import { useEffect } from 'react';
 import api from '../../services/api';
 import { ENDPOINTS } from '../../constants/api';
 import useAuthStore from '../../store/authStore';
@@ -91,16 +91,64 @@ export default function MiCuentaScreen({ navigation }) {
     avatar:     user?.avatarUrl  ?? null,
     correo:     user?.email      ?? '',
     contrasena: '••••••••••••••••',    // nunca se muestra la contraseña real
+    passwordActual: '',
+    nuevaPassword: '',
     telefono:   user?.telefono   ?? '',
     documento:  user?.documento  ?? '',
     idUsuario:  String(user?.id  ?? ''),
   };
   // ─────────────────────────────────────────────────────────────────────
   
-  const [loadingPerfil, setLoadingPerfil] = useState(false);
+  // @TASK: Mantiene la pantalla en carga hasta obtener el perfil autenticado.
+  const [loadingPerfil, setLoadingPerfil] = useState(true);
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ ...usuarioInicial });
+  // @TASK: Conserva el último perfil obtenido para restaurarlo al cancelar la edición.
+  const [formInicial, setFormInicial] = useState({ ...usuarioInicial });
+
+  // @API: Obtiene el perfil real del usuario autenticado al montar la pantalla.
+  useEffect(() => {
+    // @TASK: Evita actualizar el estado si la pantalla se desmonta durante la petición.
+    let activo = true;
+
+    // @API: GET /api/users/me retorna los datos dentro de data.perfil.
+    const cargarPerfil = async () => {
+      try {
+        const data = await api.get(ENDPOINTS.ME);
+        const perfil = data?.perfil;
+
+        if (!perfil || !activo) return;
+
+        // @TASK: Adapta el contrato del backend a los campos usados por el formulario.
+        const perfilForm = {
+          nombre: perfil.nombre ?? '',
+          avatar: perfil.foto ? `data:image/jpeg;base64,${perfil.foto}` : null,
+          correo: perfil.email ?? '',
+          contrasena: '••••••••••••••••',
+          passwordActual: '',
+          nuevaPassword: '',
+          telefono: perfil.telefono ?? '',
+          documento: perfil.documento ?? '',
+          idUsuario: String(perfil.registroId ?? perfil.personaId ?? ''),
+        };
+        setForm(perfilForm);
+        setFormInicial(perfilForm);
+      } catch (error) {
+        if (activo) {
+          Alert.alert('Error', error?.response?.data?.message || 'No se pudo obtener tu perfil.');
+        }
+      } finally {
+        if (activo) setLoadingPerfil(false);
+      }
+    };
+
+    cargarPerfil();
+
+    return () => {
+      activo = false;
+    };
+  }, []);
 
   const set = (campo) => (valor) => setForm((prev) => ({ ...prev, [campo]: valor }));
 
@@ -125,7 +173,8 @@ export default function MiCuentaScreen({ navigation }) {
           text: 'Cancelar',
           style: 'cancel',
           onPress: () => {
-            setForm({ ...usuarioInicial }); // revertir
+            // @TASK: Restaura los datos reales cargados, sin conservar contraseñas ingresadas.
+            setForm({ ...formInicial, passwordActual: '', nuevaPassword: '' });
             setEditing(false);
           },
         },
@@ -137,21 +186,30 @@ export default function MiCuentaScreen({ navigation }) {
             // setEditing(false);
 
             // ── CONEXIÓN BACKEND — guardar perfil ──────────────────────────
-            // PUT /api/users/me
-            // Body: { nombre, telefono, direccion, password (opcional) }
+            // @API: PUT /api/users/me actualiza los campos que admite el backend.
             api.put(ENDPOINTS.ME, {
               nombre:   form.nombre,
               telefono: form.telefono,
+              email:    form.correo,
+              documento: form.documento,
+              ...(form.nuevaPassword && {
+                passwordActual: form.passwordActual,
+                nuevaPassword: form.nuevaPassword,
+              }),
             })
               .then(() => {
                 // Perfil actualizado correctamente
+                // @TASK: Actualiza el respaldo y elimina las contraseñas de memoria tras guardar.
+                const formGuardado = { ...form, passwordActual: '', nuevaPassword: '' };
+                setForm(formGuardado);
+                setFormInicial(formGuardado);
                 setEditing(false);
               })
               .catch((err) => {
                 // Si falla el servidor mostrar error al usuario
                 Alert.alert(
                   'Error',
-                  err?.data?.message || 'No se pudo guardar. Intentá de nuevo.'
+                  err?.response?.data?.message || 'No se pudo guardar. Intentá de nuevo.'
                 );
               });
             // ──────────────────────────────────────────────────────────────
@@ -160,6 +218,17 @@ export default function MiCuentaScreen({ navigation }) {
       ]
     );
   };
+
+  if (loadingPerfil) {
+    return (
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.white }]}>
+        {/* @TASK: Indica que el perfil real todavía se está cargando. */}
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#8B0000" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.white }]}>
@@ -182,8 +251,8 @@ export default function MiCuentaScreen({ navigation }) {
       >
         {/* ── Avatar ──────────────────────────────── */}
         <View style={styles.avatarWrapper}>
-          {usuarioInicial.avatar ? (
-            <Image source={{ uri: usuarioInicial.avatar }} style={styles.avatar} />
+          {form.avatar ? (
+            <Image source={{ uri: form.avatar }} style={styles.avatar} />
           ) : (
             <View style={styles.avatarPlaceholder}>
               <Text style={styles.avatarIniciales}>{iniciales}</Text>
@@ -224,13 +293,24 @@ export default function MiCuentaScreen({ navigation }) {
             keyboardType="email-address"
           />
           <Campo
-            label="Contraseña"
-            value={form.contrasena}
-            onChange={set('contrasena')}
+            label={editing ? 'Contraseña actual' : 'Contraseña'}
+            value={editing ? form.passwordActual : form.contrasena}
+            onChange={set('passwordActual')}
             editing={editing}
             censurable={true}
             secureEntry={true}
           />
+          {editing && (
+            <Campo
+              // @TASK: Captura la nueva contraseña requerida por PUT /api/users/me.
+              label="Nueva contraseña"
+              value={form.nuevaPassword}
+              onChange={set('nuevaPassword')}
+              editing={true}
+              censurable={true}
+              secureEntry={true}
+            />
+          )}
           <Campo
             label="Numero de telefono"
             value={form.telefono}
@@ -280,6 +360,11 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   // Top Bar

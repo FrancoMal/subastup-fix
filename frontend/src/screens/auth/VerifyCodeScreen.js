@@ -13,11 +13,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
 import { ENDPOINTS } from '../../constants/api';
+import { useAppTheme } from '../../context/ThemeContext';
 
 const LOGO = require('../../assets/images/banner_principal.jpeg');
 
 export default function VerifyCodeScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
+  const { theme } = useAppTheme();
   const email  = route?.params?.email ?? '';
 
   const [codigo,    setCodigo]   = useState('');
@@ -62,15 +64,15 @@ export default function VerifyCodeScreen({ navigation, route }) {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.white }]}>
 
       {/* ── Btn volver ── */}
       <TouchableOpacity
         style={styles.backBtn}
         onPress={() => navigation.navigate('Login')}
       >
-        <Ionicons name="arrow-back" size={22} color="#8b0000" />
-        <Text style={styles.backText}>Volver al login</Text>
+        <Ionicons name="arrow-back" size={22} color={theme.primary} />
+        <Text style={[styles.backText, { color: theme.primary }]}>Volver al login</Text>
       </TouchableOpacity>
 
       {/* ── Logo ── */}
@@ -79,34 +81,34 @@ export default function VerifyCodeScreen({ navigation, route }) {
       </View>
 
       {/* ── Instrucción ── */}
-      <Text style={styles.instruccion}>
+      <Text style={[styles.instruccion, { color: theme.secondary }]}>
         Ingresá el código de verificación que recibiste por mail
       </Text>
 
       {/* ── Input código ── */}
       <TextInput
-        style={[styles.input, error ? styles.inputError : null]}
+        style={[styles.input, { backgroundColor: theme.background, color: theme.secondary }, error ? [styles.inputError, { borderColor: theme.error }] : null]}
         value={codigo}
         onChangeText={(t) => { setCodigo(t); setError(''); }}
         keyboardType="numeric"
         textAlign="center"
         maxLength={8}
         placeholder="- - - - - -"
-        placeholderTextColor="#BBBBBB"
+        placeholderTextColor={theme.placeholder}
       />
 
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      {error ? <Text style={[styles.errorText, { color: theme.error }]}>{error}</Text> : null}
 
       {/* ── Btn Validar ── */}
       <TouchableOpacity
-        style={[styles.btnValidar, loading && styles.btnDisabled]}
+        style={[styles.btnValidar, { backgroundColor: theme.primary }, loading && styles.btnDisabled]}
         onPress={handleValidar}
         disabled={loading}
         activeOpacity={0.85}
       >
         {loading
-          ? <ActivityIndicator color="#FFFFFF" />
-          : <Text style={styles.btnValidarText}>Validar</Text>
+          ? <ActivityIndicator color={theme.white} />
+          : <Text style={[styles.btnValidarText, { color: theme.white }]}>Validar</Text>
         }
       </TouchableOpacity>
 
@@ -115,7 +117,7 @@ export default function VerifyCodeScreen({ navigation, route }) {
         disabled={reenviando || reenviado}
         style={{ marginTop: 16, alignItems: 'center' }}
       >
-        <Text style={{ color: reenviado ? '#888888' : '#8b0000', fontSize: 13, fontWeight: '600' }}>
+        <Text style={{ color: reenviado ? theme.placeholder : theme.primary, fontSize: 13, fontWeight: '600' }}>
           {reenviando ? 'Enviando...' : reenviado ? 'Código reenviado ✓' : 'Reenviar código'}
         </Text>
       </TouchableOpacity>
@@ -124,7 +126,7 @@ export default function VerifyCodeScreen({ navigation, route }) {
       <View style={{ flex: 1 }} />
 
       {/* ── Texto al pie ── */}
-      <Text style={[styles.footerText, { marginBottom: insets.bottom + 24 }]}>
+      <Text style={[styles.footerText, { marginBottom: insets.bottom + 24, color: theme.placeholder }]}>
         Una vez validado el código, podrás reescribir tu contraseña
       </Text>
 
