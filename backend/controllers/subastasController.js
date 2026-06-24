@@ -218,7 +218,7 @@ exports.buscarSubastas = async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 exports.detalleSubasta = async (req, res) => {
   try {
-    const subastaId = parseInt(req.params.subastaId);
+    const subastaId = parseInt(req.params.id);
 
     const subasta = await prisma.subastas.findFirst({
       where: { identificador: subastaId },
