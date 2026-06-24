@@ -13,7 +13,7 @@ exports.getPerfil = async (req, res) => {
 
     const registro = await prisma.registros.findFirst({
       where: { identificador: registroId, persona: personaId },
-      include: { personas: true },
+      include: { personas: { include: { perfilContacto: true } } },
     });
 
     if (!registro)
@@ -28,7 +28,7 @@ exports.getPerfil = async (req, res) => {
         registroId:    registro.identificador,
         nombre:        p.nombre,
         documento:     p.documento,
-        telefono:      p.telefono,
+        telefono:      p.perfilContacto?.telefono || null,
         direccion:     p.direccion,
         email:         registro.email,
         rol:           registro.rol,
@@ -45,13 +45,13 @@ exports.getPerfil = async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────
 // PUT /api/perfil
-// Body: { nombre?, telefono?, direccion?, email?,
+// Body: { nombre?, telefono?, direccion?, documento?, email?,
 //         passwordActual?, nuevaPassword?, fotoBase64? }
 // ─────────────────────────────────────────────────────────────
 exports.editarPerfil = async (req, res) => {
   try {
     const { personaId, registroId } = req.user;
-    const { nombre, telefono, direccion, email, passwordActual, nuevaPassword, fotoBase64 } = req.body;
+    const { nombre, telefono, direccion, documento, email, passwordActual, nuevaPassword, fotoBase64 } = req.body;
 
     // Traer registro + login
     const registro = await prisma.registros.findFirst({
@@ -69,6 +69,18 @@ exports.editarPerfil = async (req, res) => {
       });
       if (emailEnUso)
         return res.status(409).json({ ok: false, message: 'Ese email ya está en uso.' });
+    }
+
+    // @TASK: Evita asignar a un usuario un documento que ya pertenece a otra persona.
+    if (documento?.trim()) {
+      const documentoEnUso = await prisma.personas.findFirst({
+        where: {
+          documento: documento.trim(),
+          identificador: { not: personaId },
+        },
+      });
+      if (documentoEnUso)
+        return res.status(409).json({ ok: false, message: 'Ese documento ya está en uso.' });
     }
 
     // ── Cambio de contraseña: validar la actual ─────────────────
@@ -105,11 +117,21 @@ exports.editarPerfil = async (req, res) => {
         where: { identificador: personaId },
         data: {
           ...(nombre    && { nombre }),
-          ...(telefono  && { telefono }),
           ...(direccion && { direccion }),
+          // @TASK: Persiste el documento validado desde la pantalla Mi Cuenta.
+          ...(documento?.trim() && { documento: documento.trim() }),
           ...(fotoBuffer && { foto: fotoBuffer }),
         },
       });
+
+      // @TASK: El teléfono se conserva en la extensión de perfil, no en personas.
+      if (telefono !== undefined) {
+        await tx.perfilesContacto.upsert({
+          where:  { persona: personaId },
+          create: { persona: personaId, telefono: telefono || null },
+          update: { telefono: telefono || null },
+        });
+      }
 
       // Actualizar email en registros
       if (email && email.toLowerCase().trim() !== registro.email) {

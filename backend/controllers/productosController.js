@@ -31,17 +31,29 @@ exports.cargarProducto = async (req, res) => {
     if (!duenio)
       return res.status(403).json({ ok: false, message: 'Solo los dueños pueden cargar productos.' });
 
+    // @TASK: La tabla base exige revisor; se asigna un empleado técnico hasta la revisión real.
+    const revisorTecnico = await prisma.empleados.findFirst({
+      where: { cargo: 'Revisor técnico del sistema' },
+    });
+
+    if (!revisorTecnico)
+      return res.status(503).json({ ok: false, message: 'No hay un revisor técnico configurado.' });
+
     // Crear producto + fotos en transacción
     const producto = await prisma.$transaction(async (tx) => {
       const p = await tx.productos.create({
         data: {
-          nombre,
           descripcionCompleta,
           duenio:    personaId,
+          revisor:   revisorTecnico.identificador,
           fecha:     new Date(),
-          estado:    'pendiente',
           disponible: 'no',
         },
+      });
+
+      // @TASK: Los datos operativos viven en la extensión y no en productos base.
+      await tx.productosDetalle.create({
+        data: { producto: p.identificador, nombre, estado: 'pendiente' },
       });
 
       for (const fotoBase64 of fotosBase64) {
@@ -106,19 +118,22 @@ exports.misProductos = async (req, res) => {
     const productos = await prisma.productos.findMany({
       where:   { duenio: personaId },
       orderBy: { fecha: 'desc' },
-      select: {
-        identificador:      true,
-        nombre:             true,
-        estado:             true,
-        fecha:              true,
-        descripcionCompleta: true,
-        motivoRechazo:      true,
-        direccionEnvio:     true,
-        descripcionCatalogo: true,
-      },
+      include: { detalle: true },
     });
 
-    return res.json({ ok: true, productos });
+    return res.json({
+      ok: true,
+      productos: productos.map((p) => ({
+        identificador: p.identificador,
+        nombre: p.detalle?.nombre || 'Producto',
+        estado: p.detalle?.estado || 'pendiente',
+        fecha: p.fecha,
+        descripcionCompleta: p.descripcionCompleta,
+        motivoRechazo: p.detalle?.motivoRechazo || null,
+        direccionEnvio: p.detalle?.direccionEnvio || null,
+        descripcionCatalogo: p.descripcionCatalogo,
+      })),
+    });
 
   } catch (err) {
     console.error('misProductos error:', err);
@@ -138,6 +153,7 @@ exports.detalleProducto = async (req, res) => {
     const producto = await prisma.productos.findFirst({
       where: { identificador: id, duenio: personaId },
       include: {
+        detalle:       true,
         fotos:         true,
         itemsCatalogo: {
           select: {
@@ -168,7 +184,7 @@ exports.detalleProducto = async (req, res) => {
       aprobado:           'Tu producto fue aceptado por la empresa.',
       esperando_usuario:  'La empresa hizo una propuesta. Revisá los detalles y decidí si aceptás.',
       confirmado:         'Tu producto fue confirmado y será incluido en una subasta próximamente.',
-      rechazado:          `Tu producto no fue aceptado. Motivo: ${producto.motivoRechazo || 'Sin motivo especificado'}`,
+      rechazado:          `Tu producto no fue aceptado. Motivo: ${producto.detalle?.motivoRechazo || 'Sin motivo especificado'}`,
       devuelto:           'Tu producto está siendo devuelto. Se aplicarán los cargos correspondientes.',
     };
 
@@ -176,14 +192,14 @@ exports.detalleProducto = async (req, res) => {
       ok: true,
       producto: {
         identificador:       producto.identificador,
-        nombre:              producto.nombre,
-        estado:              producto.estado,
-        textoEstado:         textoEstado[producto.estado] || '',
+        nombre:              producto.detalle?.nombre || 'Producto',
+        estado:              producto.detalle?.estado || 'pendiente',
+        textoEstado:         textoEstado[producto.detalle?.estado] || '',
         fecha:               producto.fecha,
         descripcionCompleta: producto.descripcionCompleta,
         descripcionCatalogo: producto.descripcionCatalogo,
-        motivoRechazo:       producto.motivoRechazo,
-        direccionEnvio:      producto.direccionEnvio,
+        motivoRechazo:       producto.detalle?.motivoRechazo || null,
+        direccionEnvio:      producto.detalle?.direccionEnvio || null,
         fotos:               fotosBase64,
         propuesta,
       },
@@ -206,12 +222,13 @@ exports.eliminarProducto = async (req, res) => {
 
     const producto = await prisma.productos.findFirst({
       where: { identificador: id, duenio: personaId },
+      include: { detalle: true },
     });
 
     if (!producto)
       return res.status(404).json({ ok: false, message: 'Producto no encontrado.' });
 
-    if (producto.estado !== 'pendiente')
+    if (producto.detalle?.estado !== 'pendiente')
       return res.status(400).json({ ok: false, message: 'Solo podés eliminar productos en estado pendiente.' });
 
     await prisma.$transaction(async (tx) => {
@@ -244,8 +261,8 @@ exports.responderPropuesta = async (req, res) => {
     const acepta = action === 'ACCEPT';
 
     const producto = await prisma.productos.findFirst({
-      where:   { identificador: id, duenio: personaId, estado: 'esperando_usuario' },
-      include: { itemsCatalogo: true },
+      where:   { identificador: id, duenio: personaId, detalle: { estado: 'esperando_usuario' } },
+      include: { itemsCatalogo: true, detalle: true },
     });
 
     if (!producto || producto.itemsCatalogo.length === 0)
@@ -255,8 +272,8 @@ exports.responderPropuesta = async (req, res) => {
     const nuevoEstado = acepta ? 'confirmado' : 'devuelto';
 
     await prisma.$transaction(async (tx) => {
-      await tx.productos.update({
-        where: { identificador: id },
+      await tx.productosDetalle.update({
+        where: { producto: id },
         data:  { estado: nuevoEstado },
       });
 
@@ -288,9 +305,10 @@ exports.productosPendientes = async (req, res) => {
       return res.status(403).json({ ok: false, message: 'Acceso denegado.' });
 
     const productos = await prisma.productos.findMany({
-      where:   { estado: 'pendiente' },
+      where:   { detalle: { estado: 'pendiente' } },
       orderBy: { fecha: 'desc' },
       include: {
+        detalle: true,
         duenios: {
           include: {
             personas: {
@@ -308,9 +326,9 @@ exports.productosPendientes = async (req, res) => {
 
     const resultado = productos.map((p) => ({
       productoId:          p.identificador,
-      nombre:              p.nombre,
+      nombre:              p.detalle?.nombre || 'Producto',
       descripcionCompleta: p.descripcionCompleta,
-      estado:              p.estado,
+      estado:              p.detalle?.estado || 'pendiente',
       fecha:               p.fecha,
       nombreDuenio:        p.duenios.personas.nombre,
       emailDuenio:         p.duenios.personas.registros?.[0]?.email || null,
@@ -352,8 +370,8 @@ exports.aprobarProducto = async (req, res) => {
       return res.status(403).json({ ok: false, message: 'Solo empleados pueden aprobar productos.' });
 
     await prisma.$transaction(async (tx) => {
-      await tx.productos.update({
-        where: { identificador: id },
+      await tx.productosDetalle.update({
+        where: { producto: id },
         data: {
           estado:         'esperando_usuario',
           revisor:        personaId,
@@ -361,17 +379,17 @@ exports.aprobarProducto = async (req, res) => {
         },
       });
 
-      await tx.itemsCatalogo.create({
+      const item = await tx.itemsCatalogo.create({
         data: {
           catalogo:     catalogoId,
           producto:     id,
           precioBase:   parseFloat(precioBase),
           comision:     parseFloat(comision),
           subastado:    'no',
-          fechaSubasta: new Date(fechaSubasta),
-          horaSubasta,
-          lugarSubasta,
         },
+      });
+      await tx.itemsCatalogoDetalle.create({
+        data: { item: item.identificador, fechaSubasta: new Date(fechaSubasta), horaSubasta, lugarSubasta },
       });
     });
 
@@ -401,8 +419,8 @@ exports.rechazarProducto = async (req, res) => {
       return res.status(400).json({ ok: false, message: 'El motivo de rechazo es obligatorio.' });
 
     await prisma.$transaction(async (tx) => {
-      await tx.productos.update({
-        where: { identificador: id },
+      await tx.productosDetalle.update({
+        where: { producto: id },
         data: {
           estado:        'rechazado',
           revisor:       personaId,
@@ -436,19 +454,17 @@ exports.misArticulosEnSubastas = async (req, res) => {
     const { personaId } = req.user;
 
     const productos = await prisma.productos.findMany({
-      where:   { duenio: personaId, estado: 'confirmado' },
+      where:   { duenio: personaId, detalle: { estado: 'confirmado' } },
       orderBy: { fecha: 'desc' },
       include: {
         fotos: { take: 1 },
+        detalle: true,
         itemsCatalogo: {
           select: {
             precioBase:   true,
             comision:     true,
-            moneda:       true,
-            fechaSubasta: true,
-            horaSubasta:  true,
-            lugarSubasta: true,
             subastado:    true,
+            detalle:       true,
           },
         },
       },
@@ -460,15 +476,15 @@ exports.misArticulosEnSubastas = async (req, res) => {
 
       return {
         productoId:          p.identificador,
-        nombre:              p.nombre,
+        nombre:              p.detalle?.nombre || 'Producto',
         descripcionCompleta: p.descripcionCompleta,
         portada:             foto ? Buffer.from(foto).toString('base64') : null,
         precioBase:          propuesta?.precioBase   || null,
         comision:            propuesta?.comision     || null,
-        moneda:              propuesta?.moneda       || 'ARS',
-        fechaSubasta:        propuesta?.fechaSubasta || null,
-        horaSubasta:         propuesta?.horaSubasta  || null,
-        lugarSubasta:        propuesta?.lugarSubasta || null,
+        moneda:              propuesta?.detalle?.moneda       || 'ARS',
+        fechaSubasta:        propuesta?.detalle?.fechaSubasta || null,
+        horaSubasta:         propuesta?.detalle?.horaSubasta  || null,
+        lugarSubasta:        propuesta?.detalle?.lugarSubasta || null,
         subastado:           propuesta?.subastado    || 'no',
       };
     });

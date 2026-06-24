@@ -14,8 +14,8 @@ function formatearSubasta(s) {
     ubicacion:      s.ubicacion,
     categoria:      s.categoria,
     estado:         s.estado,
-    nombreArticulo: item?.productos?.nombre || null,
-    moneda:         item?.moneda || 'ARS',
+    nombreArticulo: item?.productos?.detalle?.nombre || null,
+    moneda:         item?.detalle?.moneda || 'ARS',
     portada:        foto ? Buffer.from(foto).toString('base64') : null,
   };
 }
@@ -28,8 +28,9 @@ const includePortada = {
         take: 1,
         include: {
           productos: {
-            include: { fotos: { take: 1 } },
+            include: { fotos: { take: 1 }, detalle: true },
           },
+          detalle: true,
         },
       },
     },
@@ -153,7 +154,7 @@ exports.buscarSubastas = async (req, res) => {
             itemsCatalogo: {
               some: {
                 productos: {
-                  nombre: { contains: q.trim(), mode: 'insensitive' },
+                  detalle: { is: { nombre: { contains: q.trim(), mode: 'insensitive' } } },
                 },
               },
             },
@@ -166,13 +167,14 @@ exports.buscarSubastas = async (req, res) => {
             itemsCatalogo: {
               where: {
                 productos: {
-                  nombre: { contains: q.trim(), mode: 'insensitive' },
+                  detalle: { is: { nombre: { contains: q.trim(), mode: 'insensitive' } } },
                 },
               },
               include: {
                 productos: {
-                  include: { fotos: { take: 1 } },
+                  include: { fotos: { take: 1 }, detalle: true },
                 },
+                detalle: true,
               },
             },
           },
@@ -193,8 +195,8 @@ exports.buscarSubastas = async (req, res) => {
             ubicacion:      s.ubicacion,
             categoria:      s.categoria,
             estado:         s.estado,
-            nombreArticulo: item.productos?.nombre || null,
-            moneda:         item.moneda || 'ARS',
+            nombreArticulo: item.productos?.detalle?.nombre || null,
+            moneda:         item.detalle?.moneda || 'ARS',
             productoId:     item.productos?.identificador,
             portada:        foto ? Buffer.from(foto).toString('base64') : null,
           };
@@ -226,8 +228,9 @@ exports.detalleSubasta = async (req, res) => {
             itemsCatalogo: {
               include: {
                 productos: {
-                  select: { identificador: true, nombre: true },
+                  select: { identificador: true, detalle: true },
                 },
+                detalle: true,
               },
             },
           },
@@ -242,9 +245,9 @@ exports.detalleSubasta = async (req, res) => {
       c.itemsCatalogo.map((item) => ({
         itemId:     item.identificador,
         productoId: item.productos?.identificador,
-        nombre:     item.productos?.nombre,
+        nombre:     item.productos?.detalle?.nombre || 'Producto',
         precioBase: item.precioBase,
-        moneda:     item.moneda,
+        moneda:     item.detalle?.moneda || 'ARS',
       }))
     );
 
@@ -277,16 +280,16 @@ exports.linkStream = async (req, res) => {
 
     const item = await prisma.itemsCatalogo.findFirst({
       where:  { identificador: itemId },
-      select: { linkStream: true },
+      include: { detalle: true },
     });
 
     if (!item)
       return res.status(404).json({ ok: false, message: 'Ítem no encontrado.' });
 
-    if (!item.linkStream)
+    if (!item.detalle?.linkStream)
       return res.status(404).json({ ok: false, message: 'Esta subasta todavía no tiene un link de stream asignado.' });
 
-    return res.json({ ok: true, linkStream: item.linkStream });
+    return res.json({ ok: true, linkStream: item.detalle.linkStream });
 
   } catch (err) {
     console.error('linkStream error:', err);

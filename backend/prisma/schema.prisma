@@ -26,7 +26,6 @@ model Personas {
   identificador Int           @id @default(autoincrement())
   documento     String        @db.VarChar(20)
   nombre        String        @db.VarChar(150)
-  telefono      String?       @db.VarChar(20)
   direccion     String?       @db.VarChar(250)
   estado        String?       @db.VarChar(15)
   foto          Bytes?
@@ -39,6 +38,7 @@ model Personas {
   notificaciones       Notificaciones[]
   pushTokens           PushTokens[]
   suscripciones        SuscripcionesSubasta[]
+  perfilContacto       PerfilesContacto?
 
   @@map("personas")
 }
@@ -139,19 +139,14 @@ model Subastas {
 
 model Productos {
   identificador       Int             @id @default(autoincrement())
-  nombre              String          @db.VarChar(150)
   fecha               DateTime?       @db.Date
   disponible          String?         @db.VarChar(2)
-  // pendiente | en_inspeccion | aprobado | rechazado | esperando_usuario | confirmado | devuelto
-  estado              String          @default("pendiente") @db.VarChar(20)
   descripcionCatalogo String?         @default("No Posee") @db.VarChar(500)
   descripcionCompleta String          @db.VarChar(300)
-  motivoRechazo       String?         @db.VarChar(300)
-  direccionEnvio      String?         @db.VarChar(350)
-  revisor             Int?
+  revisor             Int
   duenio              Int
   seguro              String?         @db.VarChar(30)
-  empleados           Empleados?      @relation(fields: [revisor], references: [identificador])
+  empleados           Empleados       @relation(fields: [revisor], references: [identificador])
   duenios             Duenios         @relation(fields: [duenio], references: [identificador])
   seguros             Seguros?        @relation(fields: [seguro], references: [nroPoliza])
   fotos               Fotos[]
@@ -159,6 +154,7 @@ model Productos {
   registroDeSubasta   RegistroDeSubasta[]
   devoluciones        Devoluciones[]
   conversaciones      Conversaciones?
+  detalle             ProductosDetalle?
 
   @@map("productos")
 }
@@ -203,18 +199,10 @@ model ItemsCatalogo {
   precioBase       Decimal   @db.Decimal(18, 2)
   comision         Decimal   @db.Decimal(18, 2)
   subastado        String?   @db.VarChar(2)
-  // ARS | USD
-  moneda           String    @default("ARS") @db.VarChar(3)
-  fechaSubasta     DateTime? @db.Date
-  horaSubasta      String?   @db.VarChar(10)
-  lugarSubasta     String?   @db.VarChar(350)
-  aceptadoPorDuenio Boolean?
-  ultimaPuja        DateTime?
-  cerrado           Boolean   @default(false)
-  linkStream        String?   @db.VarChar(350)
   catalogos        Catalogos @relation(fields: [catalogo], references: [identificador])
   productos        Productos @relation(fields: [producto], references: [identificador])
   pujos            Pujos[]
+  detalle          ItemsCatalogoDetalle?
 
   @@map("itemscatalogo")
 }
@@ -237,11 +225,56 @@ model Pujos {
   item          Int
   importe       Decimal       @db.Decimal(18, 2)
   ganador       String?       @default("no") @db.VarChar(2)
-  fecha         DateTime      @default(now())
   asistentes    Asistentes    @relation(fields: [asistente], references: [identificador])
   itemsCatalogo ItemsCatalogo @relation(fields: [item], references: [identificador])
+  detalle       PujosDetalle?
 
   @@map("pujos")
+}
+
+// ── Extensiones PostgreSQL: no modifican las tablas base de la consigna ──
+
+model PerfilesContacto {
+  persona   Int      @id
+  telefono  String?  @db.VarChar(20)
+  personas  Personas @relation(fields: [persona], references: [identificador])
+
+  @@map("perfiles_contacto")
+}
+
+model ProductosDetalle {
+  producto       Int       @id
+  nombre         String    @db.VarChar(150)
+  estado         String    @default("pendiente") @db.VarChar(20)
+  revisor        Int?
+  motivoRechazo  String?   @map("motivo_rechazo") @db.VarChar(300)
+  direccionEnvio String?   @map("direccion_envio") @db.VarChar(350)
+  productos      Productos @relation(fields: [producto], references: [identificador])
+
+  @@map("productos_detalle")
+}
+
+model ItemsCatalogoDetalle {
+  item               Int            @id
+  moneda             String         @default("ARS") @db.VarChar(3)
+  fechaSubasta       DateTime?      @map("fecha_subasta") @db.Date
+  horaSubasta        String?        @map("hora_subasta") @db.VarChar(10)
+  lugarSubasta       String?        @map("lugar_subasta") @db.VarChar(350)
+  aceptadoPorDuenio  Boolean?       @map("aceptado_por_duenio")
+  ultimaPuja         DateTime?      @map("ultima_puja")
+  cerrado            Boolean        @default(false)
+  linkStream         String?        @map("link_stream") @db.VarChar(350)
+  itemsCatalogo      ItemsCatalogo  @relation(fields: [item], references: [identificador])
+
+  @@map("items_catalogo_detalle")
+}
+
+model PujosDetalle {
+  puja    Int      @id
+  fecha   DateTime @default(now())
+  pujos   Pujos    @relation(fields: [puja], references: [identificador])
+
+  @@map("pujos_detalle")
 }
 
 model RegistroDeSubasta {

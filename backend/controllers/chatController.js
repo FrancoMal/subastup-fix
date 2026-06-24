@@ -22,8 +22,8 @@ exports.listarConversaciones = async (req, res) => {
       include: {
         productos: {
           select: {
-            nombre: true,
             fotos:  { take: 1 },
+            detalle: true,
           },
         },
         mensajes: {
@@ -42,7 +42,7 @@ exports.listarConversaciones = async (req, res) => {
       return {
         conversacionId:  c.identificador,
         productoId:      c.producto,
-        nombreProducto:  c.productos?.nombre,
+        nombreProducto:  c.productos?.detalle?.nombre || 'Producto',
         portada:         foto ? Buffer.from(foto).toString('base64') : null,
         estado:          c.estado,
         ultimoMensaje:   ultimoMensaje?.texto || null,
@@ -81,7 +81,7 @@ exports.getMensajes = async (req, res) => {
       },
       include: {
         productos: {
-          select: { nombre: true },
+          select: { detalle: true },
         },
       },
     });
@@ -117,7 +117,7 @@ exports.getMensajes = async (req, res) => {
       ok:           true,
       conversacion: {
         id:             conversacion.identificador,
-        nombreProducto: conversacion.productos?.nombre,
+        nombreProducto: conversacion.productos?.detalle?.nombre || 'Producto',
         estado:         conversacion.estado,
       },
       mensajes: resultado,

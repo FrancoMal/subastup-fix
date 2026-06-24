@@ -17,10 +17,12 @@ async function getPujasUsuario(personaId) {
   const pujas = await prisma.pujos.findMany({
     where: { asistente: { in: asistenteIds } },
     include: {
+      detalle: true,
       itemsCatalogo: {
         include: {
+          detalle: true,
           productos: {
-            select: { nombre: true, fotos: { take: 1 } },
+            select: { detalle: true, fotos: { take: 1 } },
           },
         },
       },
@@ -58,7 +60,7 @@ exports.getEstadisticas = async (req, res) => {
       if (ultimaPuja.ganador === 'si') {
         subastasGanadas++;
         totalGastado += parseFloat(ultimaPuja.importe);
-      } else if (ultimaPuja.itemsCatalogo.cerrado) {
+      } else if (ultimaPuja.itemsCatalogo.detalle?.cerrado) {
         // El ítem cerró y esta no fue la puja ganadora → perdida
         subastasPerdidas++;
       }
@@ -126,7 +128,7 @@ exports.getEvolucion = async (req, res) => {
       });
 
       for (const p of pujas) {
-        const fechaPuja = p.fecha || ahora; // si no hay campo fecha, usar identificador como proxy
+        const fechaPuja = p.detalle?.fecha || ahora;
         for (const punto of puntos) {
           const mismDia =
             new Date(fechaPuja).toDateString() === punto.fecha.toDateString();
@@ -142,7 +144,7 @@ exports.getEvolucion = async (req, res) => {
       puntos = meses.map((label, i) => ({ label, mes: i, valor: 0 }));
 
       for (const p of pujas) {
-        const fechaPuja = p.fecha ? new Date(p.fecha) : ahora;
+        const fechaPuja = p.detalle?.fecha ? new Date(p.detalle.fecha) : ahora;
         if (fechaPuja.getFullYear() === ahora.getFullYear()) {
           puntos[fechaPuja.getMonth()].valor += tipo === 'gasto' ? parseFloat(p.importe) : 1;
         }
@@ -180,12 +182,12 @@ exports.getHistorialPujas = async (req, res) => {
       const foto = p.itemsCatalogo?.productos?.fotos?.[0]?.foto;
       return {
         pujaId:   p.identificador,
-        nombre:   p.itemsCatalogo?.productos?.nombre || 'Producto',
+        nombre:   p.itemsCatalogo?.productos?.detalle?.nombre || 'Producto',
         importe:  p.importe,
         // ganada | superada | en_curso
         resultado: p.ganador === 'si'
           ? 'ganada'
-          : p.itemsCatalogo?.cerrado
+          : p.itemsCatalogo?.detalle?.cerrado
             ? 'superada'
             : 'en_curso',
         portada: foto ? Buffer.from(foto).toString('base64') : null,

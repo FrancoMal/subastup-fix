@@ -35,11 +35,12 @@ exports.getEstadoPuja = async (req, res) => {
       include: {
         productos: {
           select: {
-            nombre:             true,
             descripcionCompleta: true,
             fotos:              { take: 3 },
+            detalle:            true,
           },
         },
+        detalle: true,
         pujos: {
           orderBy: { importe: 'desc' },
           take:    1,
@@ -61,20 +62,20 @@ exports.getEstadoPuja = async (req, res) => {
     if (!item)
       return res.status(404).json({ ok: false, message: 'Ítem no encontrado.' });
 
-    if (item.cerrado)
+    if (item.detalle?.cerrado)
       return res.json({
         ok:          true,
         cerrado:     true,
         message:     'Esta subasta ya finalizó.',
         pujaActual:  item.pujos[0]?.importe || item.precioBase,
-        moneda:      item.moneda,
+        moneda:      item.detalle?.moneda || 'ARS',
       });
 
     // Calcular tiempo restante
     let tiempoRestante = TIMER_SEGUNDOS;
-    if (item.ultimaPuja) {
+    if (item.detalle?.ultimaPuja) {
       const segundosTranscurridos = Math.floor(
-        (Date.now() - new Date(item.ultimaPuja).getTime()) / 1000
+        (Date.now() - new Date(item.detalle.ultimaPuja).getTime()) / 1000
       );
       tiempoRestante = Math.max(0, TIMER_SEGUNDOS - segundosTranscurridos);
     }
@@ -85,8 +86,9 @@ exports.getEstadoPuja = async (req, res) => {
         // Marcar ítem como cerrado
         await tx.itemsCatalogo.update({
           where: { identificador: itemId },
-          data:  { cerrado: true, subastado: 'si' },
+          data:  { subastado: 'si' },
         });
+        await tx.itemsCatalogoDetalle.update({ where: { item: itemId }, data: { cerrado: true } });
 
         // Marcar la puja ganadora
         await tx.pujos.update({
@@ -100,7 +102,7 @@ exports.getEstadoPuja = async (req, res) => {
         cerrado:    true,
         message:    'Subasta finalizada.',
         pujaActual: item.pujos[0].importe,
-        moneda:     item.moneda,
+        moneda:     item.detalle?.moneda || 'ARS',
         ganador:    item.pujos[0].asistentes?.clientes?.personas?.nombre || null,
       });
     }
@@ -127,9 +129,9 @@ exports.getEstadoPuja = async (req, res) => {
       ok:               true,
       cerrado:          false,
       itemId:           item.identificador,
-      nombre:           item.productos?.nombre,
+      nombre:           item.productos?.detalle?.nombre || 'Producto',
       descripcion:      item.productos?.descripcionCompleta,
-      moneda:           item.moneda,
+      moneda:           item.detalle?.moneda || 'ARS',
       precioBase:       item.precioBase,
       pujaActual:       pujaActual,
       minimoSiguiente:  minimoSiguiente !== null ? minimoSiguiente.toFixed(2) : null,
@@ -177,6 +179,7 @@ exports.pujar = async (req, res) => {
         include: {
           pujos:     { orderBy: { importe: 'desc' }, take: 1 },
           catalogos: { include: { subastas: true } },
+          detalle:   true,
         },
       });
 
@@ -186,7 +189,7 @@ exports.pujar = async (req, res) => {
         throw e;
       }
 
-      if (item.cerrado) {
+      if (item.detalle?.cerrado) {
         const e = new Error('Esta subasta ya finalizó.');
         e.status = 400;
         throw e;
@@ -212,9 +215,9 @@ exports.pujar = async (req, res) => {
       }
 
       // Timer expirado
-      if (item.ultimaPuja) {
+      if (item.detalle?.ultimaPuja) {
         const segundosTranscurridos = Math.floor(
-          (Date.now() - new Date(item.ultimaPuja).getTime()) / 1000
+          (Date.now() - new Date(item.detalle.ultimaPuja).getTime()) / 1000
         );
         if (segundosTranscurridos >= TIMER_SEGUNDOS) {
           const e = new Error('El tiempo de puja expiró.');
@@ -233,20 +236,20 @@ exports.pujar = async (req, res) => {
         const maximo = pujaActual + valorBase * MAXIMO_PORCENTAJE_VALOR_BASE;
 
         if (importeNum < minimo) {
-          const e = new Error(`Tu puja debe ser al menos ${minimo.toFixed(2)} ${item.moneda} (puja actual + 1% del valor base).`);
+          const e = new Error(`Tu puja debe ser al menos ${minimo.toFixed(2)} ${item.detalle?.moneda || 'ARS'} (puja actual + 1% del valor base).`);
           e.status = 400;
           e.extra  = { minimo: minimo.toFixed(2) };
           throw e;
         }
 
         if (importeNum > maximo) {
-          const e = new Error(`Tu puja no puede superar ${maximo.toFixed(2)} ${item.moneda} (puja actual + 20% del valor base).`);
+          const e = new Error(`Tu puja no puede superar ${maximo.toFixed(2)} ${item.detalle?.moneda || 'ARS'} (puja actual + 20% del valor base).`);
           e.status = 400;
           e.extra  = { maximo: maximo.toFixed(2) };
           throw e;
         }
       } else if (importeNum <= pujaActual) {
-        const e = new Error(`Tu puja debe ser mayor a la puja actual (${pujaActual} ${item.moneda}).`);
+        const e = new Error(`Tu puja debe ser mayor a la puja actual (${pujaActual} ${item.detalle?.moneda || 'ARS'}).`);
         e.status = 400;
         throw e;
       }
@@ -256,7 +259,7 @@ exports.pujar = async (req, res) => {
         where: {
           asistentes:    { cliente: personaId },
           item:          { not: itemId },
-          itemsCatalogo: { cerrado: false },
+          itemsCatalogo: { detalle: { is: { cerrado: false } } },
         },
         orderBy: { identificador: 'desc' },
       });
@@ -289,7 +292,7 @@ exports.pujar = async (req, res) => {
       }
 
       // Registrar la puja y resetear el timer (todavía dentro del bloqueo)
-      await tx.pujos.create({
+      const puja = await tx.pujos.create({
         data: {
           asistente: asistente.identificador,
           item:      itemId,
@@ -298,8 +301,10 @@ exports.pujar = async (req, res) => {
         },
       });
 
-      await tx.itemsCatalogo.update({
-        where: { identificador: itemId },
+      await tx.pujosDetalle.create({ data: { puja: puja.identificador } });
+
+      await tx.itemsCatalogoDetalle.update({
+        where: { item: itemId },
         data:  { ultimaPuja: new Date() },
       });
 
