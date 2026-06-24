@@ -119,3 +119,12 @@
 - Archivo: `backend/prisma/crear_extensiones.sql` creó las cuatro tablas satélite.
 - Verificación: 4 usuarios demo, 4 registros de `productos_detalle`, 4 de `items_catalogo_detalle`, 4 pujas y 4 registros de `pujos_detalle`.
 - Seed: `seed_demo.js` es idempotente; una segunda ejecución no creó duplicados.
+
+## Subastas: listado y detalle autenticado
+
+- Estado: aplicado; pendiente de verificación manual en Expo.
+- Archivos: `frontend/src/screens/auction/AuctionListScreen.js`, `frontend/src/screens/auction/AuctionListAuthScreen.js`, `frontend/src/screens/auction/AuctionDetailAuthScreen.js` y `backend/prisma/seed_demo.js`.
+- Cambio: los listados ahora extraen `data.subastas` de la respuesta real de `GET /api/auctions` y convierten sus datos al formato que requieren las tarjetas.
+- Cambio: se importó `ActivityIndicator`, eliminando el error de render de la carga en el detalle autenticado.
+- Cambio: el detalle adapta la respuesta `{ subasta, articulos }` de `GET /api/auctions/:id`, consulta `GET /api/bids/:itemId/status` para mostrar datos y precio actuales, y envía la puja con el `itemId` correcto.
+- Cambio: el seed deja las subastas demo en estado `abierta` y suma dos pujas de ejemplo para las categorías Oro y Plata. La última ejecución creó esas cuatro pujas.

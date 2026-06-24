@@ -141,7 +141,7 @@ async function asegurarProductoDemo(config, indice, duenios, equipo) {
       data: {
         fecha: fechaSubasta,
         hora: new Date('1970-01-01T15:00:00.000Z'),
-        estado: 'activa',
+        estado: 'abierta',
         subastador: equipo.subastadorId,
         ubicacion: config.ubicacion,
         capacidadAsistentes: 100,
@@ -151,6 +151,11 @@ async function asegurarProductoDemo(config, indice, duenios, equipo) {
       },
     });
     resumen.subastas += 1;
+  } else if (subasta.estado !== 'abierta') {
+    await prisma.subastas.update({
+      where: { identificador: subasta.identificador },
+      data: { estado: 'abierta' },
+    });
   }
 
   const descripcionCatalogo = `Catálogo demo ${config.categoria}`;
@@ -220,6 +225,15 @@ async function asegurarPuja(asistente, itemId, importe, ganador) {
   });
 }
 
+// @TASK: Asegura que un usuario pueda participar en una subasta demo.
+async function asegurarAsistente(cliente, subasta, numeroPostor) {
+  let asistente = await prisma.asistentes.findFirst({ where: { cliente, subasta } });
+  if (!asistente) {
+    asistente = await prisma.asistentes.create({ data: { numeroPostor, cliente, subasta } });
+  }
+  return asistente;
+}
+
 // @TASK: Ejecuta la preparación idempotente de usuarios, subastas, ítems y pujas.
 async function main() {
   const equipo = await asegurarEquipoDemo();
@@ -262,6 +276,16 @@ async function main() {
   }
   await asegurarPuja(asistenteItemDos.identificador, subastas[1].itemId, 900000, 'no');
   await asegurarPuja(cuartoAsistente.identificador, subastas[1].itemId, 950000, 'si');
+
+  const asistenteOroUno = await asegurarAsistente(personasDemo[1], subastas[2].subastaId, 50);
+  const asistenteOroDos = await asegurarAsistente(personasDemo[2], subastas[2].subastaId, 60);
+  await asegurarPuja(asistenteOroUno.identificador, subastas[2].itemId, 1600, 'no');
+  await asegurarPuja(asistenteOroDos.identificador, subastas[2].itemId, 1750, 'si');
+
+  const asistentePlataUno = await asegurarAsistente(personasDemo[2], subastas[3].subastaId, 70);
+  const asistentePlataDos = await asegurarAsistente(personasDemo[3], subastas[3].subastaId, 80);
+  await asegurarPuja(asistentePlataUno.identificador, subastas[3].itemId, 450000, 'no');
+  await asegurarPuja(asistentePlataDos.identificador, subastas[3].itemId, 480000, 'si');
 
   console.log('Resumen demo creado o reutilizado:');
   console.log(`Usuarios nuevos: ${resumen.usuarios}`);

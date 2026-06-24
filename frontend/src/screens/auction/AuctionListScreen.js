@@ -57,7 +57,16 @@ export default function AuctionListScreen({ navigation, route }) {
             search:   search || undefined,    // solo enviar si hay texto
           },
         });
-        setProductos(data || []);
+        // @API: El backend devuelve { ok, subastas }; adaptar al formato de las tarjetas.
+        const subastas = Array.isArray(data?.subastas) ? data.subastas : [];
+        setProductos(subastas.map((subasta) => ({
+          id: subasta.subastaId,
+          titulo: subasta.nombreArticulo || 'Subasta',
+          moneda: subasta.moneda || 'ARS',
+          proximamente: false,
+          fecha: subasta.fecha,
+          estado: subasta.estado,
+        })));
       } catch (error) {
         // Si falla el backend dejar lista vacía
         console.log('[AuctionList] Error al cargar:', error);

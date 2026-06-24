@@ -17,6 +17,7 @@ import {
   ToastAndroid,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -165,10 +166,37 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
       if (!productId) return;
       try {
         setLoading(true);
-        // GET /api/auctions/:id
+        // GET /api/auctions/:id devuelve { ok, subasta: { articulos: [] } }.
+        // La pantalla trabaja con un único ítem, por lo que toma el primero.
         const data = await api.get(ENDPOINTS.AUCTION_BY_ID(productId));
-        setProducto(data);
-        setUltimaPujaLocal(data?.ultimaPuja ?? data?.precioBase ?? 0);
+        const subasta = data?.subasta;
+        const articulo = subasta?.articulos?.[0];
+
+        if (!subasta || !articulo?.itemId) {
+          throw new Error('La subasta no contiene un artículo disponible.');
+        }
+
+        // El estado de puja aporta precio actual, descripción y fotos del ítem.
+        const estadoPuja = await api.get(ENDPOINTS.BID_STATUS(articulo.itemId));
+        const productoNormalizado = {
+          id: subasta.subastaId,
+          itemId: articulo.itemId,
+          titulo: estadoPuja?.nombre || articulo.nombre || 'Producto',
+          descripcion: estadoPuja?.descripcion || 'Sin descripción disponible.',
+          imagenes: (estadoPuja?.fotos || []).map((foto) =>
+            foto?.foto ? `data:image/jpeg;base64,${foto.foto}` : null
+          ),
+          coloresPlaceholder: ['#C9B99A'],
+          moneda: estadoPuja?.moneda || articulo.moneda || 'ARS',
+          ultimaPuja: estadoPuja?.pujaActual ?? articulo.precioBase ?? 0,
+          // El backend denomina "abierta" a una subasta que está en vivo.
+          estado: estadoPuja?.cerrado ? 'finalizado' : (subasta.estado === 'abierta' ? 'vivo' : subasta.estado),
+          enlace: null,
+          articulosIncluidos: subasta.articulos.map((item) => item.nombre),
+        };
+
+        setProducto(productoNormalizado);
+        setUltimaPujaLocal(Number(productoNormalizado.ultimaPuja));
       } catch (error) {
         console.log('[AuctionDetail] Error al cargar:', error);
       } finally {
@@ -287,8 +315,8 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
       
       // ── CONEXIÓN BACKEND — enviar puja ──────────────────────────────────
       try {
-        await api.post(ENDPOINTS.BIDS, { auctionId: producto.id, amount: monto });
-        console.log('[Puja] Monto:', monto, '| Subasta:', producto.id);
+        await api.post(ENDPOINTS.BIDS, { auctionId: producto.itemId, amount: monto });
+        console.log('[Puja] Monto:', monto, '| Ítem:', producto.itemId);
         setUltimaPujaLocal(monto);
         setUltimoPujadorId(MI_USER_ID); // mock local: en backend llega por WebSocket
         resetContador();

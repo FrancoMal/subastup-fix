@@ -138,7 +138,16 @@ export default function AuctionListAuthScreen({ navigation, route }) {
       const data = await api.get(ENDPOINTS.AUCTIONS, {
         params: { tipo: auctionType, category: selected?.toLowerCase(), search: search || undefined }
       });
-      setProductos(data || []);
+      // @API: El backend devuelve { ok, subastas }; adaptar al formato de las tarjetas.
+      const subastas = Array.isArray(data?.subastas) ? data.subastas : [];
+      setProductos(subastas.map((subasta) => ({
+        id: subasta.subastaId,
+        titulo: subasta.nombreArticulo || 'Subasta',
+        moneda: subasta.moneda || 'ARS',
+        proximamente: false,
+        fecha: subasta.fecha,
+        estado: subasta.estado,
+      })));
 
       // [MOCK] — eliminar cuando conectes el backend ──────────────────────────
       // await new Promise((r) => setTimeout(r, 300)); // simula latencia de red
