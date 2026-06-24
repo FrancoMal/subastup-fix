@@ -231,6 +231,12 @@ export default function ConfiguracionScreen({ navigation }) {
           // @TASK: La pantalla MisSubastas no existe todavía en el navigator.
           onPress={() => Alert.alert('Próximamente', 'Esta funcionalidad estará disponible pronto.')}
         />
+        <ActionCard
+          icon="receipt-outline"
+          label="Historial de pujas"
+          sublabel="Tus pujas recientes, ganadas y perdidas"
+          onPress={() => navigation.navigate('HistorialPujas')}
+        />
 
         {/* ── Sección: Sistema ─────────────────── */}
         <Text style={[styles.sectionLabel, { marginTop: 28 }]}>SISTEMA</Text>

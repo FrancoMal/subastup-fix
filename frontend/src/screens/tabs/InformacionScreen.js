@@ -184,9 +184,7 @@ export default function InformacionScreen({ navigation }) {
   );
 
   const handleVerArticulos = () => {
-    // @MOCK: console.log('Navegar a Mis Artículos en Subastas');
-    // @TASK: No existe una pantalla registrada que liste los artículos propios.
-    Alert.alert('Próximamente', 'Esta funcionalidad estará disponible pronto.');
+    navigation.navigate('HistorialPujas');
   };
 
   const handleHistorialPress = (item) => {

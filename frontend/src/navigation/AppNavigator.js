@@ -23,6 +23,7 @@ import ChatDetailScreen        from '../screens/chat/ChatDetailScreen';
 import AgregarMetodoPagoScreen from '../screens/payments/AgregarMetodoPagoScreen';
 import MetodosDePagoScreen     from '../screens/payments/MetodosDePagoScreen';
 import MetodoDePagoDetalleScreen from '../screens/payments/MetodoDePagoDetalleScreen';
+import HistorialPujasScreen     from '../screens/auction/HistorialPujasScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -96,6 +97,7 @@ export default function AppNavigator() {
             <Stack.Screen name="AgregarMetodoPago" component={AgregarMetodoPagoScreen} />
             <Stack.Screen name="MetodosDePago" component={MetodosDePagoScreen} />
             <Stack.Screen name="MetodoDePagoDetalle" component={MetodoDePagoDetalleScreen} />
+            <Stack.Screen name="HistorialPujas"      component={HistorialPujasScreen} />
 
           </>
         )}
