@@ -176,8 +176,7 @@ export default function InformacionScreen({ navigation }) {
   );
 
   const handleVerArticulos = () => {
-    // navigation.navigate('MisArticulos');
-    console.log('Navegar a Mis Artículos en Subastas');
+    navigation.navigate('HistorialPujas');
   };
 
   const handleHistorialPress = (item) => {

@@ -229,6 +229,12 @@ export default function ConfiguracionScreen({ navigation }) {
           sublabel="Historial y activas"
           onPress={() => navigation.navigate('MisSubastas')}  // cambiar cuando este la pantalla de mis subastas
         />
+        <ActionCard
+          icon="receipt-outline"
+          label="Historial de pujas"
+          sublabel="Tus pujas recientes, ganadas y perdidas"
+          onPress={() => navigation.navigate('HistorialPujas')}
+        />
 
         {/* ── Sección: Sistema ─────────────────── */}
         <Text style={[styles.sectionLabel, { marginTop: 28 }]}>SISTEMA</Text>
