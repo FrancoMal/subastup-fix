@@ -150,25 +150,90 @@ exports.marcarTodasLeidas = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────
+// DELETE /api/notificaciones/:id
+// Elimina una notificación del usuario logueado.
+// ─────────────────────────────────────────────────────────────
+exports.eliminarNotificacion = async (req, res) => {
+  try {
+    const { personaId } = req.user;
+    const id = parseInt(req.params.id);
+
+    const notif = await prisma.notificaciones.findFirst({
+      where: { identificador: id, persona: personaId },
+    });
+
+    if (!notif)
+      return res.status(404).json({ ok: false, message: 'Notificación no encontrada.' });
+
+    await prisma.notificaciones.delete({
+      where: { identificador: id },
+    });
+
+    return res.json({ ok: true, message: 'Notificación eliminada.' });
+
+  } catch (err) {
+    console.error('eliminarNotificacion error:', err);
+    return res.status(500).json({ ok: false, message: 'Error al eliminar la notificación.' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
 // POST /api/notificaciones/suscribir/:subastaId
 // ─────────────────────────────────────────────────────────────
 exports.suscribirSubasta = async (req, res) => {
   try {
     const { personaId } = req.user;
     const subastaId = parseInt(req.params.auctionId);
+    const subasta = await prisma.subastas.findFirst({
+      where: { identificador: subastaId },
+      include: {
+        catalogos: {
+          take: 1,
+          include: {
+            itemsCatalogo: {
+              take: 1,
+              include: {
+                productos: { include: { detalle: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!subasta)
+      return res.status(404).json({ ok: false, message: 'Subasta no encontrada.' });
+
+    const articulo = subasta.catalogos?.[0]?.itemsCatalogo?.[0]?.productos?.detalle?.nombre || 'la subasta';
 
     const existente = await prisma.suscripcionesSubasta.findFirst({
       where: { persona: personaId, subasta: subastaId },
     });
 
-    if (existente)
-      return res.json({ ok: true, message: 'Ya estabas suscripto.' });
+    if (existente) {
+      return res.json({
+        ok: true,
+        message: `Ya tenías un recordatorio para ${articulo}.`,
+      });
+    }
 
     await prisma.suscripcionesSubasta.create({
       data: { persona: personaId, subasta: subastaId },
     });
 
-    return res.status(201).json({ ok: true, message: 'Suscripción creada.' });
+    await prisma.notificaciones.create({
+      data: {
+        persona: personaId,
+        titulo: 'Recordatorio agregado',
+        mensaje: `Recordatorio de ${articulo} agregado correctamente.`,
+        tipo: 'recordatorio_subasta',
+      },
+    });
+
+    return res.status(201).json({
+      ok: true,
+      message: `Recordatorio de ${articulo} agregado correctamente.`,
+    });
 
   } catch (err) {
     console.error('suscribirSubasta error:', err);

@@ -3,6 +3,8 @@
 
 const prisma = require('../config/prisma');
 
+const ESTADOS_SUBASTA_VISIBLES = ['abierta', 'programada', 'pendiente'];
+
 // ── Helper: armar resultado de subasta ────────────────────────
 function formatearSubasta(s) {
   const item    = s.catalogos?.[0]?.itemsCatalogo?.[0];
@@ -16,6 +18,7 @@ function formatearSubasta(s) {
     estado:         s.estado,
     nombreArticulo: item?.productos?.detalle?.nombre || null,
     moneda:         item?.detalle?.moneda || 'ARS',
+    precioBase:     item?.precioBase || null,
     portada:        foto ? Buffer.from(foto).toString('base64') : null,
   };
 }
@@ -44,20 +47,21 @@ const includePortada = {
 // ─────────────────────────────────────────────────────────────
 exports.calendario = async (req, res) => {
   try {
-    const mes  = parseInt(req.query.mes)  || new Date().getMonth() + 1;
-    const anio = parseInt(req.query.anio) || new Date().getFullYear();
+    const mes  = parseInt(req.query.mes || req.query.month)  || new Date().getMonth() + 1;
+    const anio = parseInt(req.query.anio || req.query.year) || new Date().getFullYear();
 
     const desde = new Date(anio, mes - 1, 1);
     const hasta = new Date(anio, mes, 1);
 
     const subastas = await prisma.subastas.findMany({
-      where: { fecha: { gte: desde, lt: hasta }, estado: 'abierta' },
-      select: { fecha: true },
+      where: { fecha: { gte: desde, lt: hasta }, estado: { in: ESTADOS_SUBASTA_VISIBLES } },
+      orderBy: [{ fecha: 'asc' }, { hora: 'asc' }],
+      include: includePortada,
     });
 
     const dias = [...new Set(subastas.map((s) => new Date(s.fecha).getDate()))];
 
-    return res.json({ ok: true, dias });
+    return res.json({ ok: true, dias, subastas: subastas.map(formatearSubasta) });
 
   } catch (err) {
     console.error('calendario error:', err);
@@ -81,7 +85,7 @@ exports.subastasDia = async (req, res) => {
     const hasta = new Date(dia.getFullYear(), dia.getMonth(), dia.getDate() + 1);
 
     const subastas = await prisma.subastas.findMany({
-      where:   { fecha: { gte: desde, lt: hasta }, estado: 'abierta' },
+      where:   { fecha: { gte: desde, lt: hasta }, estado: { in: ESTADOS_SUBASTA_VISIBLES } },
       include: includePortada,
     });
 
@@ -100,7 +104,7 @@ exports.subastasDia = async (req, res) => {
 exports.subastasEspeciales = async (req, res) => {
   try {
     const subastas = await prisma.subastas.findMany({
-      where:   { estado: 'abierta', categoria: { in: ['especial', 'plata', 'oro', 'platino'] } },
+      where:   { estado: { in: ESTADOS_SUBASTA_VISIBLES }, categoria: { in: ['especial', 'plata', 'oro', 'platino'] } },
       orderBy: { fecha: 'asc' },
       take:    10,
       include: includePortada,
@@ -121,7 +125,7 @@ exports.subastasEspeciales = async (req, res) => {
 exports.subastasComunes = async (req, res) => {
   try {
     const subastas = await prisma.subastas.findMany({
-      where:   { estado: 'abierta', categoria: 'comun' },
+      where:   { estado: { in: ESTADOS_SUBASTA_VISIBLES }, categoria: 'comun' },
       orderBy: { fecha: 'asc' },
       take:    10,
       include: includePortada,
@@ -141,25 +145,35 @@ exports.subastasComunes = async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 exports.buscarSubastas = async (req, res) => {
   try {
-    const { q } = req.query;
+    const { q, category, tipo } = req.query;
 
     if (!q || q.trim().length < 2)
       return res.status(400).json({ ok: false, message: 'Ingresá al menos 2 caracteres para buscar.' });
 
-    const subastas = await prisma.subastas.findMany({
-      where: {
-        estado: { in: ['abierta'] },
-        catalogos: {
-          some: {
-            itemsCatalogo: {
-              some: {
-                productos: {
-                  detalle: { is: { nombre: { contains: q.trim(), mode: 'insensitive' } } },
-                },
+    const whereSubasta = {
+      estado: { in: ESTADOS_SUBASTA_VISIBLES },
+      catalogos: {
+        some: {
+          itemsCatalogo: {
+            some: {
+              productos: {
+                detalle: { is: { nombre: { contains: q.trim(), mode: 'insensitive' } } },
               },
             },
           },
         },
+      },
+    };
+
+    if (category) {
+      whereSubasta.categoria = String(category).toLowerCase();
+    } else if (tipo === 'especial') {
+      whereSubasta.categoria = { in: ['especial', 'plata', 'oro', 'platino'] };
+    }
+
+    const subastas = await prisma.subastas.findMany({
+      where: {
+        ...whereSubasta,
       },
       include: {
         catalogos: {
@@ -303,20 +317,18 @@ exports.linkStream = async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 exports.obtenerSubastas = async (req, res) => {
   try {
-    const { category, search, status, currency, page, size } = req.query;
+    const { category, search, status, tipo, currency, page, size } = req.query;
 
     if (search && search.trim().length >= 2) {
       req.query.q = search;
       return exports.buscarSubastas(req, res);
     }
 
-    const where = { estado: status || 'abierta' };
+    const where = status ? { estado: status } : { estado: { in: ESTADOS_SUBASTA_VISIBLES } };
     if (category) {
-      if (category === 'especial') {
-        where.categoria = { in: ['especial', 'plata', 'oro', 'platino'] };
-      } else {
-        where.categoria = category;
-      }
+      where.categoria = String(category).toLowerCase();
+    } else if (tipo === 'especial') {
+      where.categoria = { in: ['especial', 'plata', 'oro', 'platino'] };
     }
 
     const subastas = await prisma.subastas.findMany({

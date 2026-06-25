@@ -9,6 +9,7 @@ const {
   contadorSinLeer,
   marcarLeida,
   marcarTodasLeidas,
+  eliminarNotificacion,
   suscribirSubasta,
   cancelarSuscripcion,
 } = require('../controllers/notificacionesController');
@@ -22,5 +23,6 @@ router.patch('/read-all',                   marcarTodasLeidas);
 router.patch('/:id/read',                   marcarLeida);
 router.post('/subscribe/:auctionId',        suscribirSubasta);
 router.delete('/subscribe/:auctionId',      cancelarSuscripcion);
+router.delete('/:id',                       eliminarNotificacion);
 
 module.exports = router;

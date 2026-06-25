@@ -18,8 +18,8 @@ const MENSAJE_INICIAL_GANADOR =
   '¡Felicitaciones! Ganaste esta subasta. En breve nos comunicaremos para coordinar el pago y la entrega del artículo.';
 
 function categoriaAlcanza(categoriaUsuario, categoriaSubasta) {
-  const idxUsuario = ORDEN_CATEGORIAS.indexOf(categoriaUsuario);
-  const idxSubasta = ORDEN_CATEGORIAS.indexOf(categoriaSubasta);
+  const idxUsuario = ORDEN_CATEGORIAS.indexOf(String(categoriaUsuario || 'comun').toLowerCase());
+  const idxSubasta = ORDEN_CATEGORIAS.indexOf(String(categoriaSubasta || 'comun').toLowerCase());
   return idxUsuario >= idxSubasta;
 }
 
@@ -44,6 +44,11 @@ exports.getEstadoPuja = async (req, res) => {
             detalle:            true,
           },
         },
+        catalogos: {
+          include: {
+            subastas: true,
+          },
+        },
         detalle: true,
         pujos: {
           orderBy: { importe: 'desc' },
@@ -66,6 +71,15 @@ exports.getEstadoPuja = async (req, res) => {
     if (!item)
       return res.status(404).json({ ok: false, message: 'Ítem no encontrado.' });
 
+    let ultimaPujaAt = item.detalle?.ultimaPuja || null;
+    if (!ultimaPujaAt && item.pujos.length > 0 && item.catalogos?.subastas?.estado === 'abierta' && !item.detalle?.cerrado) {
+      ultimaPujaAt = new Date();
+      await prisma.itemsCatalogoDetalle.update({
+        where: { item: itemId },
+        data:  { ultimaPuja: ultimaPujaAt },
+      });
+    }
+
     if (item.detalle?.cerrado)
         return res.json({
           ok:          true,
@@ -74,13 +88,15 @@ exports.getEstadoPuja = async (req, res) => {
           pujaActual:  item.pujos[0]?.importe || item.precioBase,
           moneda:      item.detalle?.moneda || 'ARS',
           ganadorId:   item.pujos[0]?.asistentes?.cliente || null,
+          categoria:   item.catalogos?.subastas?.categoria || null,
+          ultimaPujaAt,
         });
 
     // Calcular tiempo restante
     let tiempoRestante = TIMER_SEGUNDOS;
-    if (item.detalle?.ultimaPuja) {
+    if (ultimaPujaAt) {
       const segundosTranscurridos = Math.floor(
-        (Date.now() - new Date(item.detalle.ultimaPuja).getTime()) / 1000
+        (Date.now() - new Date(ultimaPujaAt).getTime()) / 1000
       );
       tiempoRestante = Math.max(0, TIMER_SEGUNDOS - segundosTranscurridos);
     }
@@ -109,6 +125,8 @@ exports.getEstadoPuja = async (req, res) => {
 
         // La tabla base admite una conversación por producto. Para una subasta
         // sin conversación previa, se crea el canal persistente del ganador.
+        // Si ya existía por el flujo de revisión del artículo, se reasigna al
+        // ganador para que el chat aparezca en su pantalla de mensajes.
         if (!conversacion) {
           conversacion = await tx.conversaciones.create({
             data: {
@@ -118,15 +136,25 @@ exports.getEstadoPuja = async (req, res) => {
               estado:   'activo',
             },
           });
-          await tx.mensajes.create({
-            data: {
-              conversacion: conversacion.identificador,
-              emisor:       item.productos.revisor,
-              texto:        MENSAJE_INICIAL_GANADOR,
-              leido:        false,
+        } else if (conversacion.duenio !== ganadorId || conversacion.estado !== 'activo') {
+          conversacion = await tx.conversaciones.update({
+            where: { identificador: conversacion.identificador },
+            data:  {
+              duenio:   ganadorId,
+              empleado: item.productos.revisor,
+              estado:   'activo',
             },
           });
         }
+
+        await tx.mensajes.create({
+          data: {
+            conversacion: conversacion.identificador,
+            emisor:       item.productos.revisor,
+            texto:        MENSAJE_INICIAL_GANADOR,
+            leido:        false,
+          },
+        });
 
         await tx.notificaciones.create({
           data: {
@@ -177,12 +205,14 @@ exports.getEstadoPuja = async (req, res) => {
       nombre:           item.productos?.detalle?.nombre || 'Producto',
       descripcion:      item.productos?.descripcionCompleta,
       moneda:           item.detalle?.moneda || 'ARS',
+      categoria:        categoriaSubasta || null,
       precioBase:       item.precioBase,
       pujaActual:       pujaActual,
       minimoSiguiente:  minimoSiguiente !== null ? minimoSiguiente.toFixed(2) : null,
       maximoSiguiente:  maximoSiguiente !== null ? maximoSiguiente.toFixed(2) : null,
       sinLimite,
       tiempoRestante,
+      ultimaPujaAt,
       fotos,
     });
 
@@ -237,6 +267,13 @@ exports.pujar = async (req, res) => {
       if (item.detalle?.cerrado) {
         const e = new Error('Esta subasta ya finalizó.');
         e.status = 400;
+        throw e;
+      }
+
+      if (item.catalogos?.subastas?.estado !== 'abierta') {
+        const e = new Error('Esta subasta todavía no está activa.');
+        e.status = 400;
+        e.codigo = 'SUBASTA_NO_ACTIVA';
         throw e;
       }
 
@@ -319,7 +356,7 @@ exports.pujar = async (req, res) => {
 
       // Buscar el asistente (el usuario en la subasta)
       const subastaId = item.catalogos?.subastas?.identificador;
-      const asistente = await tx.asistentes.findFirst({
+      let asistente = await tx.asistentes.findFirst({
         where: {
           subasta:  subastaId,
           clientes: { identificador: personaId },
@@ -327,9 +364,17 @@ exports.pujar = async (req, res) => {
       });
 
       if (!asistente) {
-        const e = new Error('No estás registrado como asistente en esta subasta.');
-        e.status = 403;
-        throw e;
+        const ultimoAsistente = await tx.asistentes.findFirst({
+          where: { subasta: subastaId },
+          orderBy: { numeroPostor: 'desc' },
+        });
+        asistente = await tx.asistentes.create({
+          data: {
+            subasta: subastaId,
+            cliente: personaId,
+            numeroPostor: (ultimoAsistente?.numeroPostor || 0) + 1,
+          },
+        });
       }
 
       if (item.pujos[0]?.asistente === asistente.identificador) {
@@ -350,12 +395,13 @@ exports.pujar = async (req, res) => {
 
       await tx.pujosDetalle.create({ data: { puja: puja.identificador } });
 
+      const ultimaPujaAt = new Date();
       await tx.itemsCatalogoDetalle.update({
         where: { item: itemId },
-        data:  { ultimaPuja: new Date() },
+        data:  { ultimaPuja: ultimaPujaAt },
       });
 
-      return { importeNum };
+      return { importeNum, ultimaPujaAt };
     });
 
     return res.status(201).json({
@@ -363,6 +409,7 @@ exports.pujar = async (req, res) => {
       message:        'Puja registrada correctamente.',
       importeNuevo:   resultado.importeNum,
       tiempoRestante: TIMER_SEGUNDOS,
+      ultimaPujaAt:   resultado.ultimaPujaAt,
     });
 
   } catch (err) {

@@ -16,6 +16,7 @@ const productosDemo = [
   { nombre: 'Guitarra Gibson demo', categoria: 'especial', precioBase: 850000, duenio: 1, ubicacion: 'Demo SubastUP - Sala Especial', descripcion: 'Guitarra eléctrica de colección.', moneda: 'ARS' },
   { nombre: 'Moneda de oro demo', categoria: 'oro', precioBase: 1500, duenio: 2, ubicacion: 'Demo SubastUP - Sala Oro', descripcion: 'Moneda de oro para subasta especializada.', moneda: 'USD' },
   { nombre: 'Cámara Leica demo', categoria: 'plata', precioBase: 420000, duenio: 3, ubicacion: 'Demo SubastUP - Sala Plata', descripcion: 'Cámara analógica lista para colección.', moneda: 'ARS' },
+  { nombre: 'Radio antigua programada demo', categoria: 'comun', precioBase: 90000, duenio: 0, ubicacion: 'Demo SubastUP - Sala Programada', descripcion: 'Radio antigua cargada para probar subasta próximamente.', moneda: 'ARS', estado: 'programada' },
 ];
 
 const resumen = { usuarios: 0, metodosPago: 0, subastas: 0, productos: 0, items: 0, pujas: 0 };
@@ -135,13 +136,14 @@ async function asegurarUsuario(demo, verificadorId, indice) {
 // @TASK: Crea o recupera una subasta, su catálogo, producto e ítem disponible.
 async function asegurarProductoDemo(config, indice, duenios, equipo) {
   const fechaSubasta = proximoDia(indice);
+  const estadoSubasta = config.estado || 'abierta';
   let subasta = await prisma.subastas.findFirst({ where: { ubicacion: config.ubicacion } });
   if (!subasta) {
     subasta = await prisma.subastas.create({
       data: {
         fecha: fechaSubasta,
         hora: new Date('1970-01-01T15:00:00.000Z'),
-        estado: 'abierta',
+        estado: estadoSubasta,
         subastador: equipo.subastadorId,
         ubicacion: config.ubicacion,
         capacidadAsistentes: 100,
@@ -151,10 +153,10 @@ async function asegurarProductoDemo(config, indice, duenios, equipo) {
       },
     });
     resumen.subastas += 1;
-  } else if (subasta.estado !== 'abierta') {
+  } else if (subasta.estado !== estadoSubasta) {
     await prisma.subastas.update({
       where: { identificador: subasta.identificador },
-      data: { estado: 'abierta' },
+      data: { estado: estadoSubasta },
     });
   }
 
@@ -206,6 +208,16 @@ async function asegurarProductoDemo(config, indice, duenios, equipo) {
     });
     await prisma.itemsCatalogoDetalle.create({ data: { item: item.identificador, moneda: config.moneda, fechaSubasta, horaSubasta: '15:00', lugarSubasta: config.ubicacion, aceptadoPorDuenio: true, cerrado: false } });
     resumen.items += 1;
+  } else {
+    await prisma.itemsCatalogo.update({
+      where: { identificador: item.identificador },
+      data:  { subastado: 'no' },
+    });
+    await prisma.itemsCatalogoDetalle.upsert({
+      where:  { item: item.identificador },
+      create: { item: item.identificador, moneda: config.moneda, fechaSubasta, horaSubasta: '15:00', lugarSubasta: config.ubicacion, aceptadoPorDuenio: true, cerrado: false },
+      update: { moneda: config.moneda, fechaSubasta, horaSubasta: '15:00', lugarSubasta: config.ubicacion, aceptadoPorDuenio: true, cerrado: false, ultimaPuja: null },
+    });
   }
 
   return { subastaId: subasta.identificador, itemId: item.identificador };

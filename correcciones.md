@@ -139,3 +139,123 @@
 - Ganador: al cerrar, el backend crea una conversación persistente para el ganador —si no existía una para el producto— con un mensaje inicial provisorio, y registra una notificación `subasta_ganada` sin leer. El texto definitivo de términos podrá reemplazar el mensaje provisorio cuando sea provisto.
 - Interfaz: el popup de ganador se decide con el `ganadorId` confirmado por el backend; al aceptar vuelve a Inicio. La campana de Inicio obtiene `data.notificaciones`, muestra el detalle y un contador de no leídas.
 - Compatibilidad: no se modificó ninguna tabla base ni se alteraron rutas HTTP existentes; solo se enriquecieron respuestas ya existentes con los datos necesarios para el flujo.
+
+## Flujo de puja: timer y validaciones previas
+
+- Estado: aplicado; pendiente de verificación manual en Expo luego de deploy.
+- Archivos: `frontend/src/screens/auction/AuctionDetailAuthScreen.js`, `backend/controllers/pujasController.js` y `backend/prisma/seed_demo.js`.
+- Cambio: el endpoint de estado de puja ahora devuelve `categoria` y `ultimaPujaAt`, manteniendo las mismas rutas existentes.
+- Cambio: si `items_catalogo_detalle.ultima_puja` no está cargado, el backend ya no usa pujas históricas demo como inicio del timer; así las pujas precargadas no cierran automáticamente el artículo apenas se abre la pantalla.
+- Cambio: el seed demo reactiva los ítems existentes, marca `cerrado = false` y limpia `ultima_puja` para que el set demo vuelva a quedar disponible al reejecutarlo.
+- Cambio: si una subasta sí llega finalizada, el detalle autenticado muestra un bloque claro de “Subasta finalizada” en vez de dejar la pantalla sin acciones y confusa.
+- Cambio: el cronómetro del detalle ya no se reinicia en cada polling; solo se sincroniza contra backend cuando cambia la última puja real del ítem.
+- Cambio: la validación de categoría se ejecuta antes de abrir el teclado de monto. Si el usuario no alcanza la categoría requerida, se muestra el popup inmediatamente al intentar participar.
+- Cambio: la validación de método de pago aprobado/verificado también ocurre antes de abrir el teclado. Si no existe método activo y aprobado, aparece el popup correspondiente sin dejar ingresar monto.
+- Validación local: `npx prisma validate`, `node --check controllers/pujasController.js` y `node --check frontend/src/screens/auction/AuctionDetailAuthScreen.js` exitosos.
+
+## Navegación a mensajes y datos del drawer
+
+- Estado: aplicado; pendiente de verificación manual en Expo.
+- Archivos: `frontend/src/screens/tabs/HomeAuthenticatedScreen.js`, `frontend/src/screens/auction/AuctionListAuthScreen.js`, `frontend/src/screens/auction/AuctionDetailAuthScreen.js` y `frontend/src/screens/payments/MetodosDePagoScreen.js`.
+- Cambio: los botones de “Mensajes” del menú hamburguesa y de barras inferiores custom navegan a `Chats`, la ruta stack registrada para `ChatsScreen`, evitando el error por `Search` o rutas internas no disponibles.
+- Cambio: el drawer ya no muestra “Nombre del usuario”; ahora toma el nombre/email del usuario logueado desde `authStore`.
+- Cambio: el avatar del drawer ya no usa una imagen fija; muestra las iniciales del usuario dentro del círculo de perfil.
+- Validación local: `node --check` exitoso en las cuatro pantallas modificadas.
+
+## Chat: detalle, envío persistente y fallback sin socket
+
+- Estado: aplicado; pendiente de verificación manual en Expo.
+- Archivos: `frontend/src/screens/chat/ChatDetailScreen.js` y `frontend/src/screens/chat/ChatsScreen.js`.
+- Cambio: el detalle del chat dejó de depender de WebSocket para funcionar; ahora carga el historial con `GET /api/chats/:id/messages`.
+- Cambio: el envío de mensajes se persiste con `POST /api/chats/:id/messages`, por lo que el mensaje queda guardado en backend y vuelve a aparecer al reabrir el chat.
+- Cambio: se normalizó la respuesta real del backend (`mensajeId`, `texto`, `fecha`, `esMio`) al formato que renderiza la pantalla.
+- Cambio: la lista de chats usa `conversacionId` como key y como identificador principal, evitando claves `undefined` con conversaciones reales.
+- Cambio: `ChatsScreen` ahora tiene una flecha de regreso equivalente a la de `ChatDetailScreen`, navegando directamente a `Main` para volver al inicio.
+- Validación local: `node --check frontend/src/screens/chat/ChatDetailScreen.js` y `node --check frontend/src/screens/chat/ChatsScreen.js` exitosos.
+
+## Notificaciones: badge, lectura y eliminación manual
+
+- Estado: aplicado; pendiente de verificación manual en Expo luego de deploy backend.
+- Archivos: `frontend/src/screens/tabs/HomeAuthenticatedScreen.js`, `frontend/src/constants/api.js`, `backend/controllers/notificacionesController.js` y `backend/routes/notificaciones.js`.
+- Cambio: al abrir la campanita se llama a `PATCH /api/notifications/read-all`; el contador de no leídas desaparece, pero las notificaciones permanecen en el panel.
+- Cambio: las notificaciones se muestran como tarjetas acumuladas dentro del panel, conservando título y mensaje.
+- Cambio: cada notificación se puede eliminar manualmente deslizándola hacia un costado; la app llama a `DELETE /api/notifications/:id`.
+- Cambio backend: se agregó el endpoint de eliminación validando que la notificación pertenezca al usuario logueado.
+- Validación local: `node --check` exitoso en controller, rutas, constantes y Home autenticado.
+
+## Mi cuenta: datos reales, edición inline y cambio de contraseña
+
+- Estado: aplicado; pendiente de verificación manual en Expo.
+- Archivos: `frontend/src/screens/profile/MiCuentaScreen.js`, `frontend/src/navigation/AppNavigator.js`, `frontend/src/store/authStore.js`, `frontend/src/screens/auth/VerifyCodeScreen.js` y `frontend/src/screens/auth/ResetPasswordScreen.js`.
+- Cambio: la pantalla carga el perfil real desde `GET /api/users/me`, incluyendo nombre, email, teléfono, documento, dirección, foto e identificador.
+- Cambio: al tocar modificar, los campos del perfil se editan inline y se guardan con `PUT /api/users/me`; la contraseña queda fuera de ese formulario.
+- Cambio: la contraseña ya no muestra un ojo sobre puntitos falsos; se indica como protegida por seguridad porque el backend nunca debe devolver la contraseña real.
+- Cambio: en modo edición aparece el botón `Cambiar contraseña`, con colores de la app, que abre un modal equivalente al de “Olvidé mi contraseña”.
+- Cambio: el modal envía el código con `POST /api/auth/forgot-password` y navega a `VerifyCode`/`ResetPassword` dentro del flujo logueado, volviendo a `MiCuenta` al terminar.
+- Cambio: `authStore.setUser` ahora persiste los cambios del perfil en `AsyncStorage` para conservarlos tras reiniciar la app.
+- Validación local: `node --check` exitoso en las cinco piezas modificadas.
+
+## Detalle de subasta no autenticado
+
+- Estado: aplicado; pendiente de verificación manual en Expo.
+- Archivo: `frontend/src/screens/auction/AuctionDetailScreen.js`.
+- Cambio: la pantalla ya no usa la respuesta cruda de `GET /api/auctions/:id`; ahora adapta `{ subasta, articulos }` al formato visual esperado.
+- Cambio: consulta `GET /api/bids/:itemId/status` para obtener nombre, descripción y fotos reales, sin mostrar precio base ni categoría en el detalle público.
+- Cambio: se blindó el carrusel para que use `[null]` como fallback y no rompa con `producto.imagenes.map` cuando la API no trae imágenes.
+- Cambio: se mantiene el flujo no autenticado: sin botones de puja/enlace/info, con cartel de que no puede participar sin registrarse y botón para iniciar sesión.
+- Validación local: `node --check frontend/src/screens/auction/AuctionDetailScreen.js` exitoso.
+
+## Flujo de carga de bien y seguimiento del artículo
+
+- Estado: primer bloque aplicado; pendiente de verificación integrada en Expo y Render.
+- Archivos backend: `backend/controllers/productosController.js` y `backend/routes/productos.js`.
+- Archivos frontend: `frontend/src/screens/auction/CargarProductoScreen.js`, `frontend/src/screens/auction/ArticulosEnSubastasScreen.js`, `frontend/src/screens/auction/ArticuloEnSubastaDetalleScreen.js`, `frontend/src/screens/tabs/InformacionScreen.js`, `frontend/src/screens/auction/HistorialPujasScreen.js`, `frontend/src/constants/api.js` y `frontend/src/navigation/AppNavigator.js`.
+- Cambio backend: al cargar un bien se crea el producto en estado `pendiente`, se guardan fotos, se crea automáticamente una conversación asociada al producto, se agrega un mensaje automático inicial y se crea una notificación para la campanita.
+- Cambio backend: se corrigió el límite de fotos para que el formulario de 6 imágenes mínimas pueda enviarse; ahora acepta hasta 12 fotos.
+- Cambio backend: se expuso `PUT /api/products/:id/respond` para que el usuario acepte o rechace la propuesta final.
+- Cambio backend: al aceptar/rechazar propuesta se actualiza el estado, se registra mensaje automático en el chat y se crea notificación.
+- Cambio backend: los endpoints de aprobar/rechazar producto por revisor/tasador ahora también escriben mensaje y notificación al usuario.
+- Cambio frontend: al finalizar la carga del bien se vuelve a `Main`, evitando navegar a una ruta inexistente `Home`.
+- Cambio frontend: `InformacionScreen` ahora separa correctamente “Tus artículos en subastas” de “Tu historial de pujas”; cada botón navega a su pantalla correspondiente.
+- Cambio frontend: `ArticulosEnSubastasScreen` ahora lista los productos propios desde `GET /api/users/me/auctions` como cards con foto, nombre, fecha y estado.
+- Cambio frontend: se creó `ArticuloEnSubastaDetalleScreen`, conectada a `GET /api/products/:id`, con detalle del artículo, estado, fotos, descripción, propuesta final y botones aceptar/rechazar cuando el estado es `esperando_usuario`.
+- Cambio frontend: `HistorialPujasScreen` usa `GET /api/users/me/bids` correctamente y se desactivó la navegación a `DetallePuja` porque esa pantalla todavía no está registrada.
+- Compatibilidad: se mantiene el uso de tablas satélite para estados/detalles; no se modifican tablas base de la consigna.
+- Validación local: `npx prisma validate`, `node --check` en controller/rutas de productos y pantallas modificadas exitosos.
+
+## Subastas programadas, calendario y recordatorios
+
+- Estado: aplicado; pendiente de deploy backend, reejecución de seed y verificación manual en Expo.
+- Archivos backend: `backend/controllers/subastasController.js`, `backend/controllers/notificacionesController.js` y `backend/prisma/seed_demo.js`.
+- Archivos frontend: `frontend/src/utils/auctionState.js`, `frontend/src/screens/auction/AuctionListScreen.js`, `frontend/src/screens/auction/AuctionListAuthScreen.js`, `frontend/src/screens/auction/AuctionDetailScreen.js`, `frontend/src/screens/auction/AuctionDetailAuthScreen.js` y `frontend/src/screens/tabs/CalendarScreen.js`.
+- Cambio backend: `GET /api/auctions` ahora lista subastas visibles tanto `abierta` como `programada`/`pendiente`, manteniendo la misma ruta.
+- Cambio backend: `GET /api/auctions/calendar` acepta `month/year` además de `mes/anio`, conserva `dias` y agrega `subastas` completas del mes para poder listar “Subastas del día”.
+- Cambio backend: las respuestas de subasta incluyen `precioBase` cuando existe el primer ítem del catálogo.
+- Cambio backend: `POST /api/notifications/subscribe/:auctionId` valida que la subasta exista, crea la suscripción y genera una notificación inmediata tipo `recordatorio_subasta` para la campanita.
+- Cambio seed: se agregó una quinta subasta demo, `Radio antigua programada demo`, con estado `programada`, sin alterar las cuatro subastas abiertas usadas para probar pujas.
+- Cambio frontend: se creó `auctionState.js` para normalizar estados: `abierta` se muestra como `vivo`; `programada`, `proximamente` y `pendiente` se muestran como `proximamente`; estados cerrados se muestran como `finalizado`.
+- Cambio frontend: se corrigió el parseo de fecha/hora de subastas para evitar que fechas PostgreSQL en UTC se muestren como el día anterior en Argentina.
+- Cambio frontend: los listados autenticado y no autenticado muestran cards programadas con overlay de campanita, texto `Proximamente` y fecha/hora.
+- Cambio frontend: el detalle autenticado de subasta programada muestra cartel `Proximamente`, fecha/hora y botón `Agregar Recordatorio`, conectado al endpoint real de suscripción.
+- Cambio frontend: el detalle no autenticado muestra el cartel `Proximamente` y ofrece iniciar sesión para agregar recordatorio.
+- Cambio frontend: `CalendarScreen` consume las subastas reales del mes, marca días con subastas y lista debajo las subastas del día/mes; cada card navega al detalle correspondiente según si el usuario está logueado.
+- Compatibilidad: no se agregaron rutas nuevas y no se modificaron las tablas base de la consigna.
+- Validación local: `npx prisma validate`, `node --check` en controllers, seed, pantallas modificadas y helper frontend exitosos.
+
+## Flujo de pujas: consistencia de categorías, timer persistente y cierre
+
+- Estado: aplicado; pendiente de deploy backend y verificación manual en Expo.
+- Archivos backend: `backend/controllers/subastasController.js` y `backend/controllers/pujasController.js`.
+- Archivos frontend: `frontend/src/screens/auction/AuctionListScreen.js`, `frontend/src/screens/auction/AuctionListAuthScreen.js`, `frontend/src/screens/auction/AuctionDetailAuthScreen.js` y `frontend/src/screens/tabs/InformacionScreen.js`.
+- Cambio backend: `GET /api/auctions` ahora interpreta `category` como filtro exacto. Si se pide `Oro` desde subastas comunes o especiales, devuelve el mismo set de subastas Oro.
+- Cambio backend: el agrupado de subastas especiales queda reservado para `tipo=especial` cuando no se envía una categoría puntual.
+- Cambio frontend: los listados autenticado y no autenticado envían `tipo` y `category` con el mismo contrato, evitando diferencias entre categorías equivalentes.
+- Cambio frontend: la pantalla de subastas especiales ahora muestra los chips `Especial`, `Plata`, `Oro` y `Platino`; la categoría `Oro` es consistente con la de subastas comunes.
+- Cambio backend: si una subasta activa tiene pujas existentes pero no tiene `ultima_puja`, el backend inicializa ese timestamp una sola vez en base para que el contador no se reinicie al salir y volver a entrar.
+- Cambio frontend: el contador ya no corre “de mentira” si todavía no existe una puja real con `ultimaPujaAt`; queda estable hasta que el backend informe una puja registrada.
+- Cambio backend: `POST /api/bids` rechaza pujas si la subasta no está `abierta`, respetando el flujo donde un administrador la activa manualmente cambiando el estado.
+- Cambio backend: al pujar, si el usuario cumple categoría y método de pago pero todavía no tiene registro de asistente en esa subasta, se crea automáticamente el asistente/postor.
+- Cambio backend: al cerrar una subasta con ganador, se marca la puja ganadora, se crea o reasigna el chat del producto al ganador, se agrega siempre el mensaje automático de ganador y se crea la notificación `subasta_ganada`.
+- Cambio frontend: `InformacionScreen` ahora lee correctamente `estadisticas` desde la respuesta real de `GET /api/users/me/stats`, por lo que ganadas, perdidas, pujas realizadas y total gastado reflejan los cierres.
+- Compatibilidad: no se agregaron rutas nuevas y no se modificaron las tablas base de la consigna.
+- Validación local: `npx prisma validate`, `node --check` en controllers y pantallas modificadas exitosos.

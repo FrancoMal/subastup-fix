@@ -19,12 +19,14 @@ router.use(auth);
 
 // Usuario
 router.post('/',                          cargarProducto);
-router.get('/:id',                        detalleProducto);
-router.delete('/:id',                     eliminarProducto);
+router.get('/pending-review',             productosPendientes);
+router.put('/:id/respond',                responderPropuesta);
 
 // Revisor / Admin
-router.get('/pending-review',             productosPendientes);
 router.put('/:id/approve',                aprobarProducto);
 router.put('/:id/reject',                 rechazarProducto);
+
+router.get('/:id',                        detalleProducto);
+router.delete('/:id',                     eliminarProducto);
 
 module.exports = router;

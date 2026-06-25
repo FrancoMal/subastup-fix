@@ -4,6 +4,13 @@
 const prisma = require('../config/prisma');
 const { enviarMail } = require('../services/mailService');
 
+const MENSAJE_PRODUCTO_RECIBIDO =
+  'Recibimos tu producto para revisión. Un asesor de SubastUP se va a comunicar por este chat para continuar el proceso.';
+const MENSAJE_PROPUESTA_ACEPTADA =
+  'Confirmaste la propuesta. Tu artículo queda aceptado para avanzar al circuito de subasta.';
+const MENSAJE_PROPUESTA_RECHAZADA =
+  'Rechazaste la propuesta. El circuito queda cerrado y coordinaremos los próximos pasos si corresponde.';
+
 // ─────────────────────────────────────────────────────────────
 // POST /api/productos
 // Usuario carga un producto nuevo
@@ -20,8 +27,8 @@ exports.cargarProducto = async (req, res) => {
     if (!fotosBase64 || fotosBase64.length === 0)
       return res.status(400).json({ ok: false, message: 'Debe subir al menos una foto.' });
 
-    if (fotosBase64.length > 4)
-      return res.status(400).json({ ok: false, message: 'Máximo 4 fotos por producto.' });
+    if (fotosBase64.length > 12)
+      return res.status(400).json({ ok: false, message: 'Máximo 12 fotos por producto.' });
 
     // Verificar que la persona sea dueño
     const duenio = await prisma.duenios.findFirst({
@@ -40,7 +47,7 @@ exports.cargarProducto = async (req, res) => {
       return res.status(503).json({ ok: false, message: 'No hay un revisor técnico configurado.' });
 
     // Crear producto + fotos en transacción
-    const producto = await prisma.$transaction(async (tx) => {
+    const resultadoCreacion = await prisma.$transaction(async (tx) => {
       const p = await tx.productos.create({
         data: {
           descripcionCompleta,
@@ -66,8 +73,36 @@ exports.cargarProducto = async (req, res) => {
         });
       }
 
-      return p;
+      const conversacion = await tx.conversaciones.create({
+        data: {
+          producto: p.identificador,
+          duenio:   personaId,
+          empleado: revisorTecnico.identificador,
+          estado:   'activo',
+        },
+      });
+
+      await tx.mensajes.create({
+        data: {
+          conversacion: conversacion.identificador,
+          emisor:       revisorTecnico.identificador,
+          texto:        MENSAJE_PRODUCTO_RECIBIDO,
+          leido:        false,
+        },
+      });
+
+      await tx.notificaciones.create({
+        data: {
+          persona: personaId,
+          titulo:  'Producto enviado',
+          mensaje: `Recibimos ${nombre}. Revisá el chat para seguir el proceso.`,
+          tipo:    'producto_enviado',
+        },
+      });
+
+      return { producto: p, conversacionId: conversacion.identificador };
     });
+    const producto = resultadoCreacion.producto;
 
     // Notificar por mail a todos los revisores
     try {
@@ -99,6 +134,7 @@ exports.cargarProducto = async (req, res) => {
       ok:         true,
       message:    'Producto cargado correctamente. Un revisor lo evaluará pronto.',
       productoId: producto.identificador,
+      conversacionId: resultadoCreacion.conversacionId,
     });
 
   } catch (err) {
@@ -118,21 +154,47 @@ exports.misProductos = async (req, res) => {
     const productos = await prisma.productos.findMany({
       where:   { duenio: personaId },
       orderBy: { fecha: 'desc' },
-      include: { detalle: true },
+      include: {
+        detalle: true,
+        fotos: { take: 1 },
+        itemsCatalogo: {
+          select: {
+            precioBase: true,
+            comision:   true,
+            subastado:  true,
+            detalle:    true,
+          },
+        },
+      },
     });
 
     return res.json({
       ok: true,
-      productos: productos.map((p) => ({
-        identificador: p.identificador,
-        nombre: p.detalle?.nombre || 'Producto',
-        estado: p.detalle?.estado || 'pendiente',
-        fecha: p.fecha,
-        descripcionCompleta: p.descripcionCompleta,
-        motivoRechazo: p.detalle?.motivoRechazo || null,
-        direccionEnvio: p.detalle?.direccionEnvio || null,
-        descripcionCatalogo: p.descripcionCatalogo,
-      })),
+      productos: productos.map((p) => {
+        const foto = p.fotos?.[0]?.foto;
+        const propuesta = p.itemsCatalogo?.[0] || null;
+        return {
+          identificador: p.identificador,
+          productoId: p.identificador,
+          nombre: p.detalle?.nombre || 'Producto',
+          estado: p.detalle?.estado || 'pendiente',
+          fecha: p.fecha,
+          descripcionCompleta: p.descripcionCompleta,
+          motivoRechazo: p.detalle?.motivoRechazo || null,
+          direccionEnvio: p.detalle?.direccionEnvio || null,
+          descripcionCatalogo: p.descripcionCatalogo,
+          portada: foto ? Buffer.from(foto).toString('base64') : null,
+          propuesta: propuesta ? {
+            precioBase: propuesta.precioBase,
+            comision: propuesta.comision,
+            moneda: propuesta.detalle?.moneda || 'ARS',
+            fechaSubasta: propuesta.detalle?.fechaSubasta || null,
+            horaSubasta: propuesta.detalle?.horaSubasta || null,
+            lugarSubasta: propuesta.detalle?.lugarSubasta || null,
+            aceptadoPorDuenio: propuesta.detalle?.aceptadoPorDuenio ?? null,
+          } : null,
+        };
+      }),
     });
 
   } catch (err) {
@@ -157,12 +219,11 @@ exports.detalleProducto = async (req, res) => {
         fotos:         true,
         itemsCatalogo: {
           select: {
-            precioBase:       true,
-            comision:         true,
-            fechaSubasta:     true,
-            horaSubasta:      true,
-            lugarSubasta:     true,
-            aceptadoPorDuenio: true,
+            identificador: true,
+            precioBase:    true,
+            comision:      true,
+            subastado:     true,
+            detalle:       true,
           },
         },
       },
@@ -176,7 +237,18 @@ exports.detalleProducto = async (req, res) => {
       foto: Buffer.from(f.foto).toString('base64'),
     }));
 
-    const propuesta = producto.itemsCatalogo?.[0] || null;
+    const itemPropuesta = producto.itemsCatalogo?.[0] || null;
+    const propuesta = itemPropuesta ? {
+      itemId: itemPropuesta.identificador,
+      precioBase: itemPropuesta.precioBase,
+      comision: itemPropuesta.comision,
+      subastado: itemPropuesta.subastado,
+      moneda: itemPropuesta.detalle?.moneda || 'ARS',
+      fechaSubasta: itemPropuesta.detalle?.fechaSubasta || null,
+      horaSubasta: itemPropuesta.detalle?.horaSubasta || null,
+      lugarSubasta: itemPropuesta.detalle?.lugarSubasta || null,
+      aceptadoPorDuenio: itemPropuesta.detalle?.aceptadoPorDuenio ?? null,
+    } : null;
 
     const textoEstado = {
       pendiente:          'Tu producto está siendo revisado por nuestro equipo.',
@@ -277,9 +349,30 @@ exports.responderPropuesta = async (req, res) => {
         data:  { estado: nuevoEstado },
       });
 
-      await tx.itemsCatalogo.update({
-        where: { identificador: itemId },
+      await tx.itemsCatalogoDetalle.update({
+        where: { item: itemId },
         data:  { aceptadoPorDuenio: acepta },
+      });
+
+      const conversacion = await tx.conversaciones.findFirst({ where: { producto: id } });
+      if (conversacion) {
+        await tx.mensajes.create({
+          data: {
+            conversacion: conversacion.identificador,
+            emisor:       producto.revisor,
+            texto:        acepta ? MENSAJE_PROPUESTA_ACEPTADA : MENSAJE_PROPUESTA_RECHAZADA,
+            leido:        false,
+          },
+        });
+      }
+
+      await tx.notificaciones.create({
+        data: {
+          persona: personaId,
+          titulo:  acepta ? 'Propuesta aceptada' : 'Propuesta rechazada',
+          mensaje: acepta ? 'Tu artículo fue confirmado para subasta.' : 'Rechazaste la propuesta del artículo.',
+          tipo:    acepta ? 'producto_confirmado' : 'producto_rechazado',
+        },
       });
     });
 
@@ -369,6 +462,14 @@ exports.aprobarProducto = async (req, res) => {
     if (!empleado)
       return res.status(403).json({ ok: false, message: 'Solo empleados pueden aprobar productos.' });
 
+    const productoActual = await prisma.productos.findFirst({
+      where: { identificador: id },
+      include: { detalle: true },
+    });
+
+    if (!productoActual)
+      return res.status(404).json({ ok: false, message: 'Producto no encontrado.' });
+
     await prisma.$transaction(async (tx) => {
       await tx.productosDetalle.update({
         where: { producto: id },
@@ -390,6 +491,27 @@ exports.aprobarProducto = async (req, res) => {
       });
       await tx.itemsCatalogoDetalle.create({
         data: { item: item.identificador, fechaSubasta: new Date(fechaSubasta), horaSubasta, lugarSubasta },
+      });
+
+      const conversacion = await tx.conversaciones.findFirst({ where: { producto: id } });
+      if (conversacion) {
+        await tx.mensajes.create({
+          data: {
+            conversacion: conversacion.identificador,
+            emisor:       personaId,
+            texto:        `Tu artículo fue aprobado y tenemos una propuesta con precio base ${precioBase}. Revisá el detalle del artículo para aceptar o rechazar.`,
+            leido:        false,
+          },
+        });
+      }
+
+      await tx.notificaciones.create({
+        data: {
+          persona: productoActual.duenio,
+          titulo:  'Propuesta disponible',
+          mensaje: `${productoActual.detalle?.nombre || 'Tu artículo'} fue aprobado. Revisá la propuesta final.`,
+          tipo:    'producto_propuesta',
+        },
       });
     });
 
@@ -418,6 +540,14 @@ exports.rechazarProducto = async (req, res) => {
     if (!motivo)
       return res.status(400).json({ ok: false, message: 'El motivo de rechazo es obligatorio.' });
 
+    const productoActual = await prisma.productos.findFirst({
+      where: { identificador: id },
+      include: { detalle: true },
+    });
+
+    if (!productoActual)
+      return res.status(404).json({ ok: false, message: 'Producto no encontrado.' });
+
     await prisma.$transaction(async (tx) => {
       await tx.productosDetalle.update({
         where: { producto: id },
@@ -433,6 +563,27 @@ exports.rechazarProducto = async (req, res) => {
           producto: id,
           motivo,
           cargo:    parseFloat(cargo || 0),
+        },
+      });
+
+      const conversacion = await tx.conversaciones.findFirst({ where: { producto: id } });
+      if (conversacion) {
+        await tx.mensajes.create({
+          data: {
+            conversacion: conversacion.identificador,
+            emisor:       personaId,
+            texto:        `El tasador rechazó el artículo. Motivo: ${motivo}`,
+            leido:        false,
+          },
+        });
+      }
+
+      await tx.notificaciones.create({
+        data: {
+          persona: productoActual.duenio,
+          titulo:  'Artículo rechazado',
+          mensaje: `${productoActual.detalle?.nombre || 'Tu artículo'} fue rechazado. Revisá el chat para más detalle.`,
+          tipo:    'producto_rechazado',
         },
       });
     });
