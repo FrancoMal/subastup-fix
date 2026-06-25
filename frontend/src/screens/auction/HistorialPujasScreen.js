@@ -13,7 +13,8 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import api, { ENDPOINTS } from '../../services/api';
+import api from '../../services/api';
+import { ENDPOINTS } from '../../constants/api';
 
 const FILTROS = ['Recientes', 'Antiguas', 'Ganadas', 'Perdidas'];
 
@@ -47,7 +48,7 @@ export default function HistorialPujasScreen({ navigation }) {
     try {
       setLoading(true);
       setError(null);
-      const data = await api.get(ENDPOINTS.HISTORIAL_PUJAS);
+      const data = await api.get(ENDPOINTS.MY_BIDS);
       setHistorial(data.historial || []);
     } catch (err) {
       setError('No se pudo cargar el historial. Intentá de nuevo.');
@@ -79,7 +80,7 @@ export default function HistorialPujasScreen({ navigation }) {
     return (
       <TouchableOpacity
         style={styles.card}
-        onPress={() => navigation.navigate('DetallePuja', { pujaId: item.pujaId })}
+        onPress={() => {}}
         activeOpacity={0.7}
       >
         {/* Foto */}

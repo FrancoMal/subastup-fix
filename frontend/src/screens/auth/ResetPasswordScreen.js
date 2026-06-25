@@ -27,6 +27,7 @@ export default function ResetPasswordScreen({ navigation, route }) {
   const { theme } = useAppTheme();
   // resetToken viene de VerifyCodeScreen, que lo recibió del backend
   const resetToken = route?.params?.resetToken ?? '';
+  const returnTo = route?.params?.returnTo;
 
   const [showPass1,  setShowPass1]  = useState(false);
   const [showPass2,  setShowPass2]  = useState(false);
@@ -59,8 +60,8 @@ export default function ResetPasswordScreen({ navigation, route }) {
       setLoading(false);
       Alert.alert(
         'Contraseña actualizada',
-        'Tu contraseña fue guardada correctamente. Podés iniciar sesión.',
-        [{ text: 'Ir al login', onPress: () => navigation.navigate('Login') }]
+        returnTo ? 'Tu contraseña fue guardada correctamente.' : 'Tu contraseña fue guardada correctamente. Podés iniciar sesión.',
+        [{ text: returnTo ? 'Volver' : 'Ir al login', onPress: () => navigation.navigate(returnTo || 'Login') }]
       );
     } catch (err) {
       setLoading(false);
@@ -79,10 +80,10 @@ export default function ResetPasswordScreen({ navigation, route }) {
         {/* Volver */}
         <TouchableOpacity
           style={styles.backBtn}
-          onPress={() => navigation.navigate('Login')}
+          onPress={() => navigation.navigate(returnTo || 'Login')}
         >
           <Ionicons name="arrow-back" size={22} color={theme.primary} />
-          <Text style={[styles.backText, { color: theme.primary }]}>Volver al login</Text>
+          <Text style={[styles.backText, { color: theme.primary }]}>{returnTo ? 'Volver' : 'Volver al login'}</Text>
         </TouchableOpacity>
 
         <ScrollView

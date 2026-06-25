@@ -65,7 +65,10 @@ const useAuthStore = create((set) => ({
   },
 
   clearError:    () => set({ error: null }),
-  setUser:       (user)      => set({ user, isLoggedIn: true }),
+  setUser:       async (user) => {
+    await AsyncStorage.setItem('user', JSON.stringify(user));
+    set({ user, isLoggedIn: true });
+  },
   setIsLoading:  (isLoading) => set({ isLoading }),
   setError:      (error)     => set({ error }),
 }));

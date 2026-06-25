@@ -126,15 +126,22 @@ export default function InformacionScreen({ navigation }) {
       // GET /api/users/me/stats/evolution
       // Devuelve array de puntos: [{ fecha: 'YYYY-MM-DD', monto: number }]
       const evol = await api.get(ENDPOINTS.MY_STATS_EVOL);
-      setEvolucionData(evol || []);
+      const serie = Array.isArray(evol?.serie) ? evol.serie : [];
+      const puntos = serie.map((p) => ({
+        label: p.label,
+        gasto: Number(p.valor || 0),
+        pujas: Number(p.valor || 0),
+      }));
+      setEvolucionData({ semana: puntos, mes: puntos });
 
       // GET /api/users/me/stats
       // Devuelve: { subastasGanadas, subastasPerdidas, pujasRealizadas, totalGastado }
       // Se usa para el gráfico de distribución ganadas vs perdidas
       const statsData = await api.get(ENDPOINTS.MY_STATS);
+      const estadisticas = statsData?.estadisticas || statsData || {};
       setDistData({
-        ganadas:  statsData?.subastasGanadas  ?? 0,
-        perdidas: statsData?.subastasPerdidas ?? 0,
+        ganadas:  estadisticas?.subastasGanadas  ?? 0,
+        perdidas: estadisticas?.subastasPerdidas ?? 0,
       });
       // ─────────────────────────────────────────────────────────────────────
       };
@@ -155,7 +162,8 @@ export default function InformacionScreen({ navigation }) {
       // Devuelve: { subastasGanadas, subastasPerdidas, pujasRealizadas, totalGastado }
       const loadStatsAndHistory = async () => {
         try {
-          const stats = await api.get(ENDPOINTS.MY_STATS);
+          const statsResponse = await api.get(ENDPOINTS.MY_STATS);
+          const stats = statsResponse?.estadisticas || statsResponse || {};
           // Mapear campos del backend al formato que usan los StatCard
           setStats({
             subastasGanadas:  stats?.subastasGanadas  ?? 0,
@@ -164,12 +172,6 @@ export default function InformacionScreen({ navigation }) {
             totalGastado:     stats?.totalGastado     ?? '$0',
           });
 
-          // GET /api/users/me/bids
-          // Devuelve array: [{ id, titulo, imagen, monto, estado, fecha }]
-          // El campo 'estado' puede ser 'Ganada', 'Superada' o 'Perdida'
-          const bids = await api.get(ENDPOINTS.MY_BIDS);
-          // @API: El backend devuelve las pujas dentro de la clave historial.
-          setHistorial(Array.isArray(bids?.historial) ? bids.historial : []);
         } catch(error) {
           console.log('[InformacionScreen] Error fetching stats or bids', error);
           setHistorial([]);
@@ -184,6 +186,10 @@ export default function InformacionScreen({ navigation }) {
   );
 
   const handleVerArticulos = () => {
+    navigation.navigate('ArticulosEnSubastas');
+  };
+
+  const handleVerHistorialPujas = () => {
     navigation.navigate('HistorialPujas');
   };
 
@@ -230,8 +236,12 @@ export default function InformacionScreen({ navigation }) {
         <Text style={styles.articulosChevron}>›</Text>
       </TouchableOpacity>
 
-      {/* ── HISTORIAL DE PUJAS título ── */}
+      {/* ── HISTORIAL DE PUJAS ── */}
       <Text style={[styles.sectionTitle, { marginBottom: 12, marginTop: 4 }]}>HISTORIAL DE PUJAS</Text>
+      <TouchableOpacity style={styles.articulosBtn} onPress={handleVerHistorialPujas} activeOpacity={0.8}>
+        <Text style={styles.articulosBtnText}>Tu historial de pujas</Text>
+        <Text style={styles.articulosChevron}>›</Text>
+      </TouchableOpacity>
     </View>
   );
 
@@ -250,26 +260,13 @@ export default function InformacionScreen({ navigation }) {
 
       {/* FlatList: solo el historial es scrolleable */}
       <FlatList
-        data={loadingHistorial ? [1, 2, 3].map(String) : historial}
+        data={[]}
         keyExtractor={(item) => (typeof item === 'object' ? item.id : item)}
         ListHeaderComponent={ListHeader}
         contentContainerStyle={styles.flatContent}
         showsVerticalScrollIndicator={false}
-        renderItem={({ item }) =>
-          typeof item === 'object' ? (
-            <HistorialItem item={item} onPress={handleHistorialPress} />
-          ) : (
-            <View style={styles.historialSkeleton} />
-          )
-        }
+        renderItem={() => null}
         ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-        ListEmptyComponent={
-          !loadingHistorial ? (
-            <View style={styles.historialVacio}>
-              <Text style={styles.historialVacioTexto}>No tenés pujas registradas todavía.</Text>
-            </View>
-          ) : null
-        }
       />
     </SafeAreaView>
   );

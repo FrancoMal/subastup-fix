@@ -35,6 +35,7 @@ export const ENDPOINTS = {
   PRODUCTS_PENDING: '/api/products/pending-review',
   PRODUCT_APPROVE:  (id) => `/api/products/${id}/approve`,
   PRODUCT_REJECT:   (id) => `/api/products/${id}/reject`,
+  PRODUCT_RESPOND:  (id) => `/api/products/${id}/respond`,
 
   // ── Pujas ────────────────────────────────────────────────
   BIDS:             '/api/bids',
@@ -51,6 +52,7 @@ export const ENDPOINTS = {
   NOTIF_UNREAD:     '/api/notifications/unread-count',
   NOTIF_READ:       (id) => `/api/notifications/${id}/read`,
   NOTIF_READ_ALL:   '/api/notifications/read-all',
+  NOTIF_DELETE:     (id) => `/api/notifications/${id}`,
   NOTIF_TOKEN:      '/api/notifications/push-token',
   NOTIF_SUB:        (auctionId) => `/api/notifications/subscribe/${auctionId}`,
 

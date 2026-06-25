@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
 import { ENDPOINTS } from '../../constants/api';
+import { formatearFechaHoraSubasta, normalizarEstadoSubasta } from '../../utils/auctionState';
 
 const LOGO = require('../../assets/images/texto_appbar.jpeg');
 const { width } = Dimensions.get('window');
@@ -21,7 +22,7 @@ const CARD_WIDTH = (width - 16 * 2 - 12) / 2;
 const CARD_HEIGHT = CARD_WIDTH * 1.4; 
 
 const CATEGORIAS = {
-  especial: ['Oro', 'Platino'],
+  especial: ['Especial', 'Plata', 'Oro', 'Platino'],
   comun:    ['Comun', 'Especial', 'Plata', 'Oro', 'Platino'],
 };
 
@@ -53,19 +54,26 @@ export default function AuctionListScreen({ navigation, route }) {
         // Filtra por categoría seleccionada y texto de búsqueda
         const data = await api.get(ENDPOINTS.AUCTIONS, {
           params: {
+            tipo:     auctionType,
             category: selected.toLowerCase(), // ej: 'oro', 'platino', 'comun'
             search:   search || undefined,    // solo enviar si hay texto
           },
         });
         // @API: El backend devuelve { ok, subastas }; adaptar al formato de las tarjetas.
-        const subastas = Array.isArray(data?.subastas) ? data.subastas : [];
+        const subastas = Array.isArray(data?.subastas)
+          ? data.subastas
+          : Array.isArray(data?.resultados)
+            ? data.resultados
+            : [];
         setProductos(subastas.map((subasta) => ({
           id: subasta.subastaId,
           titulo: subasta.nombreArticulo || 'Subasta',
           moneda: subasta.moneda || 'ARS',
-          proximamente: false,
+          proximamente: normalizarEstadoSubasta(subasta.estado) === 'proximamente',
           fecha: subasta.fecha,
+          fechaTexto: formatearFechaHoraSubasta(subasta.fecha, subasta.hora),
           estado: subasta.estado,
+          portada: subasta.portada,
         })));
       } catch (error) {
         // Si falla el backend dejar lista vacía
@@ -88,7 +96,15 @@ export default function AuctionListScreen({ navigation, route }) {
       activeOpacity={0.85}
       onPress={() => navigation.navigate('AuctionDetail', { productId: item.id })} 
     >
-      <View style={[styles.cardImage, { backgroundColor: item.color }]} />
+      {item.portada ? (
+        <Image
+          source={{ uri: `data:image/jpeg;base64,${item.portada}` }}
+          style={styles.cardImage}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={[styles.cardImage, { backgroundColor: item.color || '#C9B99A' }]} />
+      )}
 
       <View style={styles.badge}>
         <Text style={styles.badgeText}>{item.moneda}</Text>
@@ -98,7 +114,7 @@ export default function AuctionListScreen({ navigation, route }) {
         <View style={styles.proximamenteOverlay}>
           <Ionicons name="notifications-outline" size={22} color="#1A1A1A" />
           <Text style={styles.proximamenteTitulo}>Proximamente</Text>
-          <Text style={styles.proximamenteFecha}>{item.fecha}</Text>
+          <Text style={styles.proximamenteFecha}>{item.fechaTexto}</Text>
         </View>
       )}
 
@@ -161,7 +177,7 @@ export default function AuctionListScreen({ navigation, route }) {
       {/* ── Grid SCROLLEABLE ── */}
       <FlatList
         data={productosFiltrados}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => String(item.id)}
         numColumns={2}
         renderItem={renderCard}
         contentContainerStyle={styles.listContent}

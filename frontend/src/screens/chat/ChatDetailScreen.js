@@ -18,7 +18,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import useSocket from '../../hooks/useSocket';
 import api from '../../services/api';
 import { ENDPOINTS } from '../../constants/api';
 
@@ -29,6 +28,16 @@ const MOCK_MESSAGES = [
   { id: '1',  contenido: 'Hola, ¿sigue disponible el artículo?',    remitente: 'soporte', fechaEnvio: '2026-06-10T10:10:00Z' },
   { id: '2',  contenido: 'Sí, está disponible hasta el viernes.',   remitente: 'usuario', fechaEnvio: '2026-06-10T10:11:00Z' },
 ];
+
+const normalizarMensaje = (mensaje) => ({
+  id:         mensaje.mensajeId || mensaje.id || mensaje.identificador || String(Date.now()),
+  contenido: mensaje.texto || mensaje.contenido || mensaje.message || '',
+  remitente: mensaje.esMio || mensaje.isMine ? 'usuario' : 'soporte',
+  fechaEnvio: mensaje.fecha || mensaje.fechaEnvio || mensaje.createdAt || new Date().toISOString(),
+  isMine:    Boolean(mensaje.esMio || mensaje.isMine),
+  type:      mensaje.imagen ? 'image' : 'text',
+  imageUri:  mensaje.imagen ? `data:image/jpeg;base64,${mensaje.imagen}` : null,
+});
 
 // ─────────────────────────────────────────────
 //  Burbuja de mensaje
@@ -142,8 +151,6 @@ export default function ChatDetailScreen({ route, navigation }) {
   const [loading,     setLoading]     = useState(true);
   const listRef = useRef(null);
 
-  const socketRef = useSocket();
-
   // ── 1. Cargar historial ────────────────────────
   useEffect(() => {
     const fetchHistory = async () => {
@@ -151,10 +158,15 @@ export default function ChatDetailScreen({ route, navigation }) {
         setLoading(true);
         if (!chatId) return;
         const data = await api.get(ENDPOINTS.CHAT_MESSAGES(chatId));
-        setMessages(data || []);
+        const mensajes = Array.isArray(data?.mensajes)
+          ? data.mensajes
+          : Array.isArray(data)
+            ? data
+            : [];
+        setMessages(mensajes.map(normalizarMensaje));
       } catch (error) {
-        console.log('Error fetching messages, usando mock:', error);
-        setMessages(MOCK_MESSAGES);
+        console.log('Error fetching messages:', error?.response?.data || error?.message || error);
+        setMessages([]);
       } finally {
         setLoading(false);
         setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 150);
@@ -163,49 +175,31 @@ export default function ChatDetailScreen({ route, navigation }) {
     fetchHistory();
   }, [chatId]);
 
-  // ── 2. Socket Listeners ────────────────────────
-  useEffect(() => {
-    const socket = socketRef.current;
-    if (!socket || !chatId) return;
-
-    socket.emit('join_chat', { chatId });
-
-    const handleNuevoMensaje = (nuevoMsj) => {
-      setMessages(prev => [...prev, nuevoMsj]);
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
-    };
-
-    socket.on('nuevo_mensaje', handleNuevoMensaje);
-
-    return () => {
-      socket.off('nuevo_mensaje', handleNuevoMensaje);
-    };
-  }, [socketRef.current, chatId]);
-
   const appendMessage = (message) => {
     setMessages(prev => [...prev, message]);
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
   };
 
   // ── Enviar mensaje texto ───────────────────────
-  const handleSend = () => {
+  const handleSend = async () => {
     const text = inputText.trim();
     if (!text || !chatId) return;
 
-    const newMsg = {
-      id:     String(Date.now()),
-      contenido: text,
-      remitente: 'usuario',
-      fechaEnvio: new Date().toISOString(),
-    };
-    
-    // Add locally for instant UI
-    appendMessage(newMsg);
+    const textoPendiente = text;
     setInputText('');
-
-    // Emit event
-    if (socketRef.current) {
-      socketRef.current.emit('enviar_mensaje', { chatId, contenido: text });
+    try {
+      const data = await api.post(ENDPOINTS.CHAT_MESSAGES(chatId), { texto: textoPendiente });
+      appendMessage({
+        id:         data?.mensajeId || String(Date.now()),
+        contenido: textoPendiente,
+        remitente: 'usuario',
+        fechaEnvio: data?.fecha || new Date().toISOString(),
+        isMine:    true,
+      });
+    } catch (error) {
+      console.log('Error sending message:', error?.response?.data || error?.message || error);
+      setInputText(textoPendiente);
+      Alert.alert('Error', error?.response?.data?.message || 'No se pudo enviar el mensaje. Intentá nuevamente.');
     }
   };
 

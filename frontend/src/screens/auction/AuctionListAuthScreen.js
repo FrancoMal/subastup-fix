@@ -18,9 +18,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../../context/ThemeContext';
 import api from '../../services/api';
 import { ENDPOINTS } from '../../constants/api';
+import useAuthStore from '../../store/authStore';
+import { formatearFechaHoraSubasta, normalizarEstadoSubasta } from '../../utils/auctionState';
 
 const LOGO        = require('../../assets/images/texto_appbar.jpeg');
-const USER_AVATAR = require('../../assets/images/avatar.jpeg');
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = SCREEN_WIDTH * 0.78;
@@ -30,7 +31,7 @@ const CARD_HEIGHT  = CARD_WIDTH * 1.4;
 // ─── Barra de navegación inferior ────────────────────────────────────────────
 const BOTTOM_NAV_TABS = [
   { name: 'Main',           label: 'Inicio',   icon: 'home-outline' },
-  { name: 'Mensajes',       label: 'Mensajes', icon: 'mail-outline' },
+  { name: 'Chats',          label: 'Mensajes', icon: 'mail-outline' },
   { name: 'CargarProducto', label: 'Publicar', icon: 'add-circle-outline' },
   { name: 'PujarAuth',      label: 'Pujar',    icon: 'flag-outline' },
 ];
@@ -45,7 +46,7 @@ const DRAWER_GROUPS = [
   [
     { label: 'Pujar',           icon: 'pricetag-outline',   nav: 'AuctionListAuth', navParams: { auctionType: 'comun' } },
     { label: 'Cargar producto', icon: 'add-square-outline', nav: null },
-    { label: 'Mensajes',        icon: 'mail-outline',       nav: 'Search' },
+    { label: 'Mensajes',        icon: 'mail-outline',       nav: 'Chats' },
   ],
   [
     { label: 'Cerrar sesion', icon: 'log-out-outline', nav: null, isLogout: true },
@@ -98,8 +99,19 @@ const NOTIFICATIONS = [];
 
 // Backend de la materia no implementa categorias dinamicas por ahora
 const CATEGORIAS_LOCAL = {
-  especial: ['Oro', 'Platino'],
+  especial: ['Especial', 'Plata', 'Oro', 'Platino'],
   comun:    ['Comun', 'Especial', 'Plata', 'Oro', 'Platino'],
+};
+
+const obtenerNombreUsuario = (user) =>
+  user?.name || user?.nombre || user?.email || 'Usuario';
+
+const obtenerIniciales = (nombre = '') => {
+  const partes = String(nombre).trim().split(/\s+/).filter(Boolean);
+  const letras = partes.length > 1
+    ? `${partes[0][0]}${partes[1][0]}`
+    : String(nombre).slice(0, 2);
+  return letras.toUpperCase() || 'US';
 };
 
 // ─── Pantalla ────────────────────────────────────────────────────────────────
@@ -107,6 +119,9 @@ export default function AuctionListAuthScreen({ navigation, route }) {
   const { theme, isDark } = useAppTheme();
   const insets      = useSafeAreaInsets();
   const auctionType = route?.params?.auctionType ?? 'comun';
+  const user = useAuthStore((state) => state.user);
+  const userName = obtenerNombreUsuario(user);
+  const userInitials = obtenerIniciales(userName);
 
   // TODO BACKEND: reemplazar CATEGORIAS_MOCK[auctionType] por el resultado de
   // api.get(`${ENDPOINTS.AUCTION_CATEGORIES}?tipo=${auctionType}`)
@@ -139,14 +154,20 @@ export default function AuctionListAuthScreen({ navigation, route }) {
         params: { tipo: auctionType, category: selected?.toLowerCase(), search: search || undefined }
       });
       // @API: El backend devuelve { ok, subastas }; adaptar al formato de las tarjetas.
-      const subastas = Array.isArray(data?.subastas) ? data.subastas : [];
+      const subastas = Array.isArray(data?.subastas)
+        ? data.subastas
+        : Array.isArray(data?.resultados)
+          ? data.resultados
+          : [];
       setProductos(subastas.map((subasta) => ({
         id: subasta.subastaId,
         titulo: subasta.nombreArticulo || 'Subasta',
         moneda: subasta.moneda || 'ARS',
-        proximamente: false,
+        proximamente: normalizarEstadoSubasta(subasta.estado) === 'proximamente',
         fecha: subasta.fecha,
+        fechaTexto: formatearFechaHoraSubasta(subasta.fecha, subasta.hora),
         estado: subasta.estado,
+        portada: subasta.portada,
       })));
 
       // [MOCK] — eliminar cuando conectes el backend ──────────────────────────
@@ -204,7 +225,7 @@ export default function AuctionListAuthScreen({ navigation, route }) {
   const handleItemPress = (item) => {
     closeMenu();
     if (!item.nav) return;
-    const TABS = ['Home', 'Search', 'Calendar', 'Chats', 'Profile'];
+    const TABS = ['Home', 'Calendar', 'Chats', 'Profile'];
     if (TABS.includes(item.nav)) {
       navigation.navigate(item.nav);
     } else {
@@ -236,8 +257,8 @@ export default function AuctionListAuthScreen({ navigation, route }) {
   const handleBottomNav = (tabName) => {
     if (tabName === 'Main') {
       navigation.navigate('Main');
-    } else if (tabName === 'Mensajes') {
-      navigation.navigate('Mensajes');
+    } else if (tabName === 'Chats') {
+      navigation.navigate('Chats');
     } else if (tabName === 'CargarProducto') {
       navigation.navigate('CargarProducto');
     } else if (tabName === 'PujarAuth') {
@@ -255,8 +276,15 @@ export default function AuctionListAuthScreen({ navigation, route }) {
       activeOpacity={0.85}
       onPress={() => navigation.navigate('AuctionDetailAuth', { productId: item.id })}
     >
-      {/* TODO BACKEND: reemplazar este View por un <Image source={{ uri: item.imagenUrl }} /> */}
-      <View style={[styles.cardImage, { backgroundColor: item.color }]} />
+      {item.portada ? (
+        <Image
+          source={{ uri: `data:image/jpeg;base64,${item.portada}` }}
+          style={styles.cardImage}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={[styles.cardImage, { backgroundColor: item.color || '#C9B99A' }]} />
+      )}
 
       <View style={styles.badge}>
         <Text style={[styles.badgeText, { color: theme.secondary }]}>{item.moneda}</Text>
@@ -266,7 +294,7 @@ export default function AuctionListAuthScreen({ navigation, route }) {
         <View style={styles.proximamenteOverlay}>
           <Ionicons name="notifications-outline" size={22} color={theme.secondary} />
           <Text style={[styles.proximamenteTitulo, { color: theme.secondary }]}>Proximamente</Text>
-          <Text style={styles.proximamenteFecha}>{item.fecha}</Text>
+          <Text style={styles.proximamenteFecha}>{item.fechaTexto}</Text>
         </View>
       )}
 
@@ -345,7 +373,7 @@ export default function AuctionListAuthScreen({ navigation, route }) {
       {!loading && !error && (
         <FlatList
           data={productos}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => String(item.id)}
           numColumns={2}
           renderItem={renderCard}
           contentContainerStyle={styles.listContent}
@@ -482,8 +510,10 @@ export default function AuctionListAuthScreen({ navigation, route }) {
         </TouchableOpacity>
 
         <View style={styles.profileSection}>
-          <Image source={USER_AVATAR} style={styles.avatar} />
-          <Text style={[styles.userName, { color: theme.secondary }]}>Nombre del usuario</Text>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarInitials}>{userInitials}</Text>
+          </View>
+          <Text style={[styles.userName, { color: theme.secondary }]}>{userName}</Text>
         </View>
 
         <ScrollView style={styles.drawerScroll} showsVerticalScrollIndicator={false}>
@@ -711,7 +741,10 @@ const styles = StyleSheet.create({
     borderWidth: 2.5,
     borderColor: '#D4A598',
     backgroundColor: '#F0D8CC',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  avatarInitials: { fontSize: 24, fontWeight: '800', color: '#8b0000' },
   userName:       { fontSize: 17, fontWeight: '700', color: '#1a1a1a' },
   drawerScroll:   { flex: 1 },
   separator: {

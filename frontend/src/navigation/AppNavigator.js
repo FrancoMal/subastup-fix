@@ -8,6 +8,8 @@ import SplashScreen             from '../screens/SplashScreen';
 import HomeUnauthenticatedScreen from '../screens/tabs/HomeUnauthenticatedScreen';
 import AuthNavigator            from './AuthNavigator';
 import TabNavigator             from './TabNavigator';
+import VerifyCodeScreen     from '../screens/auth/VerifyCodeScreen';
+import ResetPasswordScreen  from '../screens/auth/ResetPasswordScreen';
 import AuctionListScreen    from '../screens/auction/AuctionListScreen';
 import AuctionDetailScreen  from '../screens/auction/AuctionDetailScreen';
 import CalendarScreen       from '../screens/tabs/CalendarScreen';
@@ -24,6 +26,8 @@ import AgregarMetodoPagoScreen from '../screens/payments/AgregarMetodoPagoScreen
 import MetodosDePagoScreen     from '../screens/payments/MetodosDePagoScreen';
 import MetodoDePagoDetalleScreen from '../screens/payments/MetodoDePagoDetalleScreen';
 import HistorialPujasScreen     from '../screens/auction/HistorialPujasScreen';
+import ArticulosEnSubastasScreen from '../screens/auction/ArticulosEnSubastasScreen';
+import ArticuloEnSubastaDetalleScreen from '../screens/auction/ArticuloEnSubastaDetalleScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -98,6 +102,10 @@ export default function AppNavigator() {
             <Stack.Screen name="MetodosDePago" component={MetodosDePagoScreen} />
             <Stack.Screen name="MetodoDePagoDetalle" component={MetodoDePagoDetalleScreen} />
             <Stack.Screen name="HistorialPujas"      component={HistorialPujasScreen} />
+            <Stack.Screen name="ArticulosEnSubastas" component={ArticulosEnSubastasScreen} />
+            <Stack.Screen name="ArticuloEnSubastaDetalle" component={ArticuloEnSubastaDetalleScreen} />
+            <Stack.Screen name="VerifyCode"          component={VerifyCodeScreen} />
+            <Stack.Screen name="ResetPassword"       component={ResetPasswordScreen} />
 
           </>
         )}

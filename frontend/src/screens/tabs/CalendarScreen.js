@@ -16,6 +16,7 @@ import useAuthStore from '../../store/authStore';
 import { useFocusEffect } from '@react-navigation/native';
 import api from '../../services/api';
 import { ENDPOINTS } from '../../constants/api';
+import { fechaSubastaLocal, formatearFechaHoraSubasta, normalizarEstadoSubasta } from '../../utils/auctionState';
 
 const LOGO = require('../../assets/images/texto_appbar.jpeg');
 const { width } = Dimensions.get('window');
@@ -89,9 +90,21 @@ export default function CalendarScreen({ navigation }) {
         const data = await api.get(
           `${ENDPOINTS.CALENDAR}?month=${mes + 1}&year=${anio}`
         );
-        // Guardar en estado para reemplazar SUBASTAS_MOCK
-        // El backend devuelve { ok: true, dias: [] } — extraer el array dias
-        setSubastas(data?.dias || []);
+        const subastasMes = Array.isArray(data?.subastas) ? data.subastas : [];
+        setSubastas(subastasMes.map((subasta) => ({
+          id: subasta.subastaId,
+          titulo: subasta.nombreArticulo || 'Subasta',
+          imagen: subasta.portada ? `data:image/jpeg;base64,${subasta.portada}` : null,
+          moneda: subasta.moneda || 'ARS',
+          precioBase: Number(subasta.precioBase || 0),
+          fecha: subasta.fecha,
+          hora: subasta.hora,
+          horaTexto: formatearFechaHoraSubasta(null, subasta.hora),
+          fechaTexto: formatearFechaHoraSubasta(subasta.fecha, subasta.hora),
+          estado: normalizarEstadoSubasta(subasta.estado),
+          categoria: subasta.categoria,
+          colorPlaceholder: '#C9B99A',
+        })));
       } catch (error) {
         // Si falla el backend, dejar el array vacío (no mostrar datos falsos)
         console.log('[CalendarScreen] Error al cargar calendario:', error);
@@ -108,15 +121,17 @@ export default function CalendarScreen({ navigation }) {
   const diasConSubasta = subastas
     .filter(s => {
       // Parsear la fecha que viene del backend (YYYY-MM-DD)
-      const f = new Date(s.fecha);
+      const f = fechaSubastaLocal(s.fecha);
+      if (!f) return false;
       return f.getMonth() === mes && f.getFullYear() === anio;
     })
-    .map(s => new Date(s.fecha).getDate()); // Extraer solo el número de día
+    .map(s => fechaSubastaLocal(s.fecha)?.getDate()); // Extraer solo el número de día
 
   // Filtra las subastas según si hay un día seleccionado o muestra todo el mes
   const subastasFiltradas = diaSeleccionado
     ? subastas.filter(s => {
-        const f = new Date(s.fecha);
+        const f = fechaSubastaLocal(s.fecha);
+        if (!f) return false;
         return (
           f.getDate()     === diaSeleccionado &&
           f.getMonth()    === mes             &&
@@ -124,7 +139,8 @@ export default function CalendarScreen({ navigation }) {
         );
       })
     : subastas.filter(s => {
-        const f = new Date(s.fecha);
+        const f = fechaSubastaLocal(s.fecha);
+        if (!f) return false;
         return f.getMonth() === mes && f.getFullYear() === anio;
       });
 
@@ -168,7 +184,11 @@ export default function CalendarScreen({ navigation }) {
   const tieneSubasta = (dia) => diasConSubasta.includes(dia);
 
   const renderSubasta = ({ item }) => (
-    <View style={[styles.subastaCard, { backgroundColor: theme.background }]}>
+    <TouchableOpacity
+      style={[styles.subastaCard, { backgroundColor: theme.background }]}
+      activeOpacity={0.86}
+      onPress={() => navigation.navigate(isLoggedIn ? 'AuctionDetailAuth' : 'AuctionDetail', { productId: item.id })}
+    >
       {/* Imagen */}
       {item.imagen
         ? <Image source={{ uri: item.imagen }} style={styles.subastaImg} resizeMode="cover" />
@@ -178,25 +198,20 @@ export default function CalendarScreen({ navigation }) {
       {/* Info */}
       <View style={styles.subastaInfo}>
         <Text style={[styles.subastaTitulo, { color: theme.secondary }]} numberOfLines={1}>{item.titulo}</Text>
-        <Text style={styles.subastaDetalle}>{item.moneda}  ${item.precioBase.toLocaleString()}</Text>
-        <Text style={styles.subastaHora}>{item.hora}hs</Text>
+        <Text style={styles.subastaDetalle}>{item.categoria || 'comun'} · {item.estado === 'vivo' ? 'Activa' : 'Proximamente'}</Text>
+        <Text style={styles.subastaHora}>{item.fechaTexto}</Text>
       </View>
 
-      {/* Botón Pujar → redirige al login o a la pestaña de pujar */}
       <TouchableOpacity
         style={styles.btnPujar}
         onPress={() => {
-          if (isLoggedIn) {
-            navigation.navigate('Main', { screen: 'Pujar' });
-          } else {
-            navigation.navigate('Auth');
-          }
+          navigation.navigate(isLoggedIn ? 'AuctionDetailAuth' : 'AuctionDetail', { productId: item.id });
         }}
         activeOpacity={0.85}
       >
-        <Text style={styles.btnPujarText}>Pujar</Text>
+        <Text style={styles.btnPujarText}>{item.estado === 'vivo' ? 'Pujar' : 'Ver'}</Text>
       </TouchableOpacity>
-    </View>
+    </TouchableOpacity>
   );
 
   return (

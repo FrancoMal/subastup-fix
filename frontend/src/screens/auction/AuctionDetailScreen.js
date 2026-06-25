@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator } from 'react-native';
 import api from '../../services/api';
 import { ENDPOINTS } from '../../constants/api';
+import { formatearFechaHoraSubasta, normalizarEstadoSubasta } from '../../utils/auctionState';
 
 const LOGO  = require('../../assets/images/texto_appbar.jpeg');
 const { width } = Dimensions.get('window');
@@ -59,10 +60,36 @@ export default function AuctionDetailScreen({ navigation, route }) {
       if (!productId) return;
       try {
         setLoading(true);
-        // GET /api/auctions/:id
-        // Devuelve: { id, titulo, descripcion, imagenes[], moneda, precioBase, categoria, estado }
+        // GET /api/auctions/:id devuelve { ok, subasta: { articulos: [] } }.
+        // Esta pantalla muestra el primer artículo de la subasta sin habilitar pujas.
         const data = await api.get(ENDPOINTS.AUCTION_BY_ID(productId));
-        setProducto(data);
+        const subasta = data?.subasta;
+        const articulo = subasta?.articulos?.[0];
+
+        if (!subasta || !articulo?.itemId) {
+          throw new Error('La subasta no contiene un artículo disponible.');
+        }
+
+        const estadoPuja = await api.get(ENDPOINTS.BID_STATUS(articulo.itemId));
+        const estadoNormalizado = normalizarEstadoSubasta(subasta.estado, estadoPuja?.cerrado);
+        const imagenes = (estadoPuja?.fotos || []).map((foto) =>
+          foto?.foto ? `data:image/jpeg;base64,${foto.foto}` : null
+        );
+
+        setProducto({
+          id: subasta.subastaId,
+          itemId: articulo.itemId,
+          titulo: estadoPuja?.nombre || articulo.nombre || subasta.nombreArticulo || 'Producto',
+          descripcion: estadoPuja?.descripcion || 'Sin descripción disponible.',
+          imagenes: imagenes.length > 0 ? imagenes : [null],
+          moneda: estadoPuja?.moneda || articulo.moneda || 'ARS',
+          precioBase: articulo.precioBase ?? estadoPuja?.precioBase ?? 0,
+          categoria: estadoPuja?.categoria || subasta.categoria || 'comun',
+          estado: estadoNormalizado,
+          fechaProximamente: formatearFechaHoraSubasta(subasta.fecha, subasta.hora),
+          coloresPlaceholder: ['#C9B99A', '#B0BEC5', '#A5C4A8'],
+          articulosIncluidos: subasta.articulos?.map((item) => item.nombre) || [],
+        });
       } catch (error) {
         console.log('[AuctionDetail] Error al cargar:', error);
         // Si falla el backend el producto queda null y la pantalla muestra vacío
@@ -107,7 +134,7 @@ export default function AuctionDetailScreen({ navigation, route }) {
         {/* Carrusel de imágenes */}
         <View style={styles.carouselContainer}>
           <FlatList
-            data={producto.imagenes}
+            data={producto.imagenes || [null]}
             keyExtractor={(_, i) => String(i)}
             horizontal
             pagingEnabled
@@ -122,14 +149,14 @@ export default function AuctionDetailScreen({ navigation, route }) {
                   resizeMode="cover"
                 />
               ) : (
-                <View style={[styles.carouselImage, { backgroundColor: producto.coloresPlaceholder[index % 3] }]} />
+                <View style={[styles.carouselImage, { backgroundColor: producto.coloresPlaceholder?.[index % 3] || '#C9B99A' }]} />
               )
             )}
           />
 
           {/* Dots indicadores */}
           <View style={styles.dotsRow}>
-            {producto.imagenes.map((_, i) => (
+            {(producto.imagenes || [null]).map((_, i) => (
               <View key={i} style={[styles.dot, i === activeSlide && styles.dotActive]} />
             ))}
           </View>
@@ -146,12 +173,20 @@ export default function AuctionDetailScreen({ navigation, route }) {
         <View style={styles.separator} />
         <Text style={styles.descTexto}>{producto.descripcion}</Text>
 
+        {producto.estado === 'proximamente' && (
+          <View style={styles.proximamenteBox}>
+            <Ionicons name="notifications-outline" size={28} color="#8b0000" />
+            <Text style={styles.proximamenteTitulo}>Proximamente</Text>
+            <Text style={styles.proximamenteFecha}>{producto.fechaProximamente}</Text>
+          </View>
+        )}
+
         {/* Bloque inferior: no puede pujar + login */}
         <View style={styles.actionsContainer}>
 
           {/* Cartel gris deshabilitado */}
           <View style={styles.btnNoPuede}>
-            <Text style={styles.btnNoPuedeText}>No puede participar{'\n'}de la puja</Text>
+            <Text style={styles.btnNoPuedeText}>No podés participar{'\n'}de la puja sin registrarte</Text>
           </View>
 
           {/* Botón Iniciar sesión */}
@@ -160,8 +195,15 @@ export default function AuctionDetailScreen({ navigation, route }) {
             activeOpacity={0.85}
             onPress={() => navigation.navigate('Auth')}
           >
-            <Ionicons name="log-in-outline" size={32} color="#FFFFFF" style={styles.btnLoginIcon} />
-            <Text style={styles.btnLoginText}>Iniciar sesion</Text>
+            <Ionicons
+              name={producto.estado === 'proximamente' ? 'notifications-outline' : 'log-in-outline'}
+              size={32}
+              color="#FFFFFF"
+              style={styles.btnLoginIcon}
+            />
+            <Text style={styles.btnLoginText}>
+              {producto.estado === 'proximamente' ? 'Iniciar sesion para agregar recordatorio' : 'Iniciar sesion'}
+            </Text>
           </TouchableOpacity>
 
         </View>
@@ -224,7 +266,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#555555',
     fontFamily: 'monospace',
-    marginBottom: 16,
+    marginBottom: 12,
     paddingHorizontal: 24,
   },
   descLabel: {
@@ -247,6 +289,29 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     paddingHorizontal: 24,
     marginBottom: 32,
+  },
+  proximamenteBox: {
+    marginHorizontal: 24,
+    marginBottom: 18,
+    backgroundColor: '#FFF5EC',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F0D8C8',
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  proximamenteTitulo: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1A1A1A',
+    marginTop: 6,
+  },
+  proximamenteFecha: {
+    fontSize: 14,
+    color: '#6B4A3A',
+    marginTop: 4,
+    textAlign: 'center',
   },
 
   // Acciones

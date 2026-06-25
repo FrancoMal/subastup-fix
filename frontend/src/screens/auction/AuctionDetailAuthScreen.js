@@ -25,9 +25,9 @@ import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
 import { ENDPOINTS } from '../../constants/api';
 import useAuthStore from '../../store/authStore';
+import { formatearFechaHoraSubasta, normalizarEstadoSubasta } from '../../utils/auctionState';
 
 const LOGO        = require('../../assets/images/texto_appbar.jpeg');
-const USER_AVATAR = require('../../assets/images/avatar.jpeg');
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = SCREEN_WIDTH * 0.78;
@@ -35,7 +35,7 @@ const DRAWER_WIDTH = SCREEN_WIDTH * 0.78;
 // ─── Bottom nav ───────────────────────────────────────────────────────────────
 const BOTTOM_NAV_TABS = [
   { name: 'Main',     label: 'Inicio',   icon: 'home-outline' },
-  { name: 'Mensajes',   label: 'Mensajes', icon: 'mail-outline' },
+  { name: 'Chats',      label: 'Mensajes', icon: 'mail-outline' },
   { name: 'CargarProducto', label: 'Publicar', icon: 'add-circle-outline' },
   { name: 'PujarAuth',    label: 'Pujar',    icon: 'flag-outline' },
 ];
@@ -50,7 +50,7 @@ const DRAWER_GROUPS = [
   [
     { label: 'Pujar',           icon: 'pricetag-outline',   nav: 'AuctionListAuth', navParams: { auctionType: 'comun' } },
     { label: 'Cargar producto', icon: 'add-square-outline', nav: null },
-    { label: 'Mensajes',        icon: 'mail-outline',       nav: 'Search' },
+    { label: 'Mensajes',        icon: 'mail-outline',       nav: 'Chats' },
   ],
   [
     { label: 'Cerrar sesion', icon: 'log-out-outline', nav: null, isLogout: true },
@@ -79,6 +79,28 @@ const NOTIFICATIONS = [];
 // El campo "coloresPlaceholder" puede eliminarse una vez que lleguen URLs reales de Cloudinary.
 
 const DURACION_SUBASTA_SEGUNDOS = 60; // TODO BACKEND: este valor debe venir del campo duracionSegundos del objeto subasta
+const ORDEN_CATEGORIAS = ['comun', 'especial', 'plata', 'oro', 'platino'];
+
+const categoriaAlcanza = (categoriaUsuario, categoriaSubasta) => {
+  const idxUsuario = ORDEN_CATEGORIAS.indexOf(String(categoriaUsuario || 'comun').toLowerCase());
+  const idxSubasta = ORDEN_CATEGORIAS.indexOf(String(categoriaSubasta || 'comun').toLowerCase());
+  if (idxUsuario === -1 || idxSubasta === -1) return false;
+  return idxUsuario >= idxSubasta;
+};
+
+const formatearCategoria = (categoria) =>
+  String(categoria || 'comun').replace(/^./, (letra) => letra.toUpperCase());
+
+const obtenerNombreUsuario = (usuario) =>
+  usuario?.name || usuario?.nombre || usuario?.email || 'Usuario';
+
+const obtenerIniciales = (nombre = '') => {
+  const partes = String(nombre).trim().split(/\s+/).filter(Boolean);
+  const letras = partes.length > 1
+    ? `${partes[0][0]}${partes[1][0]}`
+    : String(nombre).slice(0, 2);
+  return letras.toUpperCase() || 'US';
+};
 
 // const PRODUCTOS_MOCK = {
 //   '1': {
@@ -152,6 +174,8 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
 
   const user = useAuthStore((s) => s.user);
   const MI_USER_ID = String(user?.id ?? 'user-mock-123');
+  const userName = obtenerNombreUsuario(user);
+  const userInitials = obtenerIniciales(userName);
 
   const [producto, setProducto] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -162,6 +186,8 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
   const [verificandoRequisitos, setVerificandoRequisitos] = useState(false);
   const [modalRestriccion, setModalRestriccion] = useState(false);
   const [mensajeRestriccion, setMensajeRestriccion] = useState('');
+  const ultimaPujaAtRef = useRef(null);
+  const [ultimaPujaAtState, setUltimaPujaAtState] = useState(null);
 
   // ── CONEXIÓN BACKEND — detalle de subasta ───────────────────────────
   useEffect(() => {
@@ -181,6 +207,7 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
 
         // El estado de puja aporta precio actual, descripción y fotos del ítem.
         const estadoPuja = await api.get(ENDPOINTS.BID_STATUS(articulo.itemId));
+        const estadoNormalizado = normalizarEstadoSubasta(subasta.estado, estadoPuja?.cerrado);
         const productoNormalizado = {
           id: subasta.subastaId,
           itemId: articulo.itemId,
@@ -192,14 +219,21 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
           coloresPlaceholder: ['#C9B99A'],
           moneda: estadoPuja?.moneda || articulo.moneda || 'ARS',
           ultimaPuja: estadoPuja?.pujaActual ?? articulo.precioBase ?? 0,
-          // El backend denomina "abierta" a una subasta que está en vivo.
-          estado: estadoPuja?.cerrado ? 'finalizado' : (subasta.estado === 'abierta' ? 'vivo' : subasta.estado),
+          categoria: estadoPuja?.categoria || subasta.categoria || 'comun',
+          estado: estadoNormalizado,
+          fechaProximamente: formatearFechaHoraSubasta(subasta.fecha, subasta.hora),
           enlace: null,
           articulosIncluidos: subasta.articulos.map((item) => item.nombre),
         };
 
         setProducto(productoNormalizado);
         setUltimaPujaLocal(Number(productoNormalizado.ultimaPuja));
+        ultimaPujaAtRef.current = estadoPuja?.ultimaPujaAt || null;
+        setUltimaPujaAtState(estadoPuja?.ultimaPujaAt || null);
+        setSegundosRestantes(estadoPuja?.ultimaPujaAt
+          ? Number(estadoPuja?.tiempoRestante ?? DURACION_SUBASTA_SEGUNDOS)
+          : DURACION_SUBASTA_SEGUNDOS
+        );
       } catch (error) {
         console.log('[AuctionDetail] Error al cargar:', error);
       } finally {
@@ -239,7 +273,11 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
     try {
       const estado = await api.get(ENDPOINTS.BID_STATUS(producto.itemId));
       if (!estado?.cerrado) {
-        setSegundosRestantes(estado?.tiempoRestante ?? DURACION_SUBASTA_SEGUNDOS);
+        if (estado?.ultimaPujaAt && estado.ultimaPujaAt !== ultimaPujaAtRef.current) {
+          ultimaPujaAtRef.current = estado.ultimaPujaAt;
+          setUltimaPujaAtState(estado.ultimaPujaAt);
+          setSegundosRestantes(Number(estado?.tiempoRestante ?? DURACION_SUBASTA_SEGUNDOS));
+        }
         return;
       }
       if (cierreProcesadoRef.current) return;
@@ -260,7 +298,7 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
   // Así se evita que el modal aparezca en otra pantalla.
   useFocusEffect(
     useCallback(() => {
-      if (!producto || producto.estado !== 'vivo') return;
+      if (!producto || producto.estado !== 'vivo' || !ultimaPujaAtState) return;
       intervalRef.current = setInterval(() => {
         setSegundosRestantes((prev) => {
           if (prev <= 1) {
@@ -274,12 +312,12 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
       return () => {
         if (intervalRef.current) clearInterval(intervalRef.current);
       };
-    }, [producto?.estado, manejarFinSubasta])
+    }, [producto?.estado, producto?.itemId, ultimaPujaAtState, manejarFinSubasta])
   );
 
   // El servidor es la fuente de verdad para el cierre y el ganador.
   useEffect(() => {
-    if (!producto?.itemId || producto.estado === 'finalizado') return undefined;
+    if (!producto?.itemId || producto.estado !== 'vivo') return undefined;
     const refrescarEstado = async () => {
       try {
         const estado = await api.get(ENDPOINTS.BID_STATUS(producto.itemId));
@@ -287,8 +325,12 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
           manejarFinSubasta();
           return;
         }
-        setUltimaPujaLocal(Number(estado?.pujaActual ?? ultimaPujaLocal));
-        setSegundosRestantes(estado?.tiempoRestante ?? DURACION_SUBASTA_SEGUNDOS);
+        setUltimaPujaLocal(Number(estado?.pujaActual ?? 0));
+        if (estado?.ultimaPujaAt && estado.ultimaPujaAt !== ultimaPujaAtRef.current) {
+          ultimaPujaAtRef.current = estado.ultimaPujaAt;
+          setUltimaPujaAtState(estado.ultimaPujaAt);
+          setSegundosRestantes(Number(estado?.tiempoRestante ?? DURACION_SUBASTA_SEGUNDOS));
+        }
       } catch (error) {
         console.log('[AuctionDetail] Error al actualizar puja:', error);
       }
@@ -327,6 +369,15 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
   const abrirTecladoPuja = async () => {
     try {
       setVerificandoRequisitos(true);
+      const categoriaUsuario = user?.categoria || 'comun';
+      const categoriaSubasta = producto?.categoria || 'comun';
+      if (!categoriaAlcanza(categoriaUsuario, categoriaSubasta)) {
+        setMensajeRestriccion(
+          `Tu categoría ${formatearCategoria(categoriaUsuario)} no te permite participar en subastas de categoría ${formatearCategoria(categoriaSubasta)}.`
+        );
+        setModalRestriccion(true);
+        return;
+      }
       const data = await api.get(ENDPOINTS.PAYMENT_METHODS);
       const metodos = Array.isArray(data?.metodos) ? data.metodos : [];
       if (!metodos.some((metodo) => metodo.verificado)) {
@@ -357,10 +408,12 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
       
       // ── CONEXIÓN BACKEND — enviar puja ──────────────────────────────────
       try {
-        await api.post(ENDPOINTS.BIDS, { auctionId: producto.itemId, amount: monto });
+        const respuestaPuja = await api.post(ENDPOINTS.BIDS, { auctionId: producto.itemId, amount: monto });
         console.log('[Puja] Monto:', monto, '| Ítem:', producto.itemId);
         setUltimaPujaLocal(monto);
         setUltimoPujadorId(MI_USER_ID); // mock local: en backend llega por WebSocket
+        ultimaPujaAtRef.current = respuestaPuja?.ultimaPujaAt || new Date().toISOString();
+        setUltimaPujaAtState(ultimaPujaAtRef.current);
         resetContador();
       } catch (error) {
         console.log('[AuctionDetail] Error al pujar:', error);
@@ -387,6 +440,18 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
     mostrarToast('Enlace copiado');
   };
 
+  const agregarRecordatorio = async () => {
+    if (!producto?.id) return;
+    try {
+      const respuesta = await api.post(ENDPOINTS.NOTIF_SUB(producto.id));
+      mostrarToast(respuesta?.message || `Recordatorio de ${producto.titulo} agregado correctamente.`);
+      setModalRecordatorio(true);
+    } catch (error) {
+      const mensaje = error?.response?.data?.message || 'No se pudo agregar el recordatorio.';
+      Alert.alert('Recordatorio', mensaje);
+    }
+  };
+
   // ── Drawer ───────────────────────────────────
   const [menuOpen, setMenuOpen] = useState(false);
   const translateX     = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
@@ -410,7 +475,7 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
   const handleItemPress = (item) => {
     closeMenu();
     if (!item.nav) return;
-    const TABS = ['Main', 'Search', 'Calendar', 'Chats', 'Profile'];
+    const TABS = ['Main', 'Calendar', 'Chats', 'Profile'];
     if (TABS.includes(item.nav)) {
       navigation.navigate(item.nav);
     } else {
@@ -447,6 +512,7 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
 
   const esProximamente = producto?.estado === 'proximamente';
   const esVivo         = producto?.estado === 'vivo';
+  const esFinalizado   = producto?.estado === 'finalizado';
 
   if (loading || !producto) {
     return (
@@ -608,12 +674,22 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
             <TouchableOpacity
               style={styles.recordatorioBtn}
               activeOpacity={0.85}
-              onPress={() => setModalRecordatorio(true)}
+              onPress={agregarRecordatorio}
             >
               <Ionicons name="notifications-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
               <Text style={styles.recordatorioBtnText}>Agregar Recordatorio</Text>
             </TouchableOpacity>
           </>
+        )}
+
+        {esFinalizado && (
+          <View style={styles.estadoFinalizadoBox}>
+            <Ionicons name="lock-closed-outline" size={28} color="#8b0000" />
+            <Text style={styles.estadoFinalizadoTitulo}>Subasta finalizada</Text>
+            <Text style={styles.estadoFinalizadoTexto}>
+              Este artículo ya no admite nuevas pujas.
+            </Text>
+          </View>
         )}
       </ScrollView>
 
@@ -840,9 +916,9 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
                 <View style={styles.recordatorioIconCircle}>
                   <Ionicons name="information-circle-outline" size={40} color="#1A1A1A" />
                 </View>
-                <Text style={styles.recordatorioTitulo}>Datos guardados y en revision</Text>
+                <Text style={styles.recordatorioTitulo}>Recordatorio agregado</Text>
                 <Text style={styles.recordatorioBody}>
-                  Tu recordatorio fue registrado. Te notificaremos antes de que comience la subasta.
+                  Tu recordatorio fue registrado correctamente. También lo vas a ver en la campanita.
                 </Text>
                 <TouchableOpacity
                   style={styles.recordatorioCerrarBtn}
@@ -1022,8 +1098,10 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
         </TouchableOpacity>
 
         <View style={styles.profileSection}>
-          <Image source={USER_AVATAR} style={styles.avatar} />
-          <Text style={styles.userName}>Nombre del usuario</Text>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarInitials}>{userInitials}</Text>
+          </View>
+          <Text style={styles.userName}>{userName}</Text>
         </View>
 
         <ScrollView style={styles.drawerScroll} showsVerticalScrollIndicator={false}>
@@ -1049,7 +1127,7 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
       {/* ── Barra de navegación inferior ─────────── */}
       <View style={[styles.bottomNav, { paddingBottom: insets.bottom + 8 }]}>
         {BOTTOM_NAV_TABS.map((tab, i) => {
-          const isActive = tab.name === 'Chats';
+          const isActive = false;
           return (
             <TouchableOpacity
               key={i}
@@ -1286,6 +1364,30 @@ const styles = StyleSheet.create({
     color: '#444',
     marginBottom: 16,
   },
+  estadoFinalizadoBox: {
+    marginHorizontal: 24,
+    marginTop: 10,
+    backgroundColor: '#FFF5EC',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F0D8C8',
+    paddingVertical: 22,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+  },
+  estadoFinalizadoTitulo: {
+    color: '#1A1A1A',
+    fontSize: 18,
+    fontWeight: '800',
+    marginTop: 8,
+    marginBottom: 6,
+  },
+  estadoFinalizadoTexto: {
+    color: '#6B4A3A',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
   recordatorioBtn: {
     marginHorizontal: 24,
     height: 52,
@@ -1496,7 +1598,10 @@ const styles = StyleSheet.create({
   avatar: {
     width: 72, height: 72, borderRadius: 36, marginBottom: 12,
     borderWidth: 2.5, borderColor: '#D4A598', backgroundColor: '#F0D8CC',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  avatarInitials: { fontSize: 24, fontWeight: '800', color: '#8b0000' },
   userName:     { fontSize: 17, fontWeight: '700', color: '#1a1a1a' },
   drawerScroll: { flex: 1 },
   separator: {

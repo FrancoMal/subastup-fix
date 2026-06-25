@@ -10,6 +10,7 @@ import {
   Alert,
   SafeAreaView,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../../context/ThemeContext';
@@ -18,7 +19,7 @@ import { ENDPOINTS } from '../../constants/api';
 import useAuthStore from '../../store/authStore';
 
 // ─── Componente de campo (vista + edición unificados) ────────────────────────
-const Campo = ({ label, value, onChange, editing, censurable, secureEntry, bloqueado, keyboardType }) => {
+const Campo = ({ label, value, onChange, editing, censurable, secureEntry, bloqueado, keyboardType, multiline }) => {
   const { theme } = useAppTheme();
   const [visible, setVisible] = useState(!secureEntry);
 
@@ -40,6 +41,7 @@ const Campo = ({ label, value, onChange, editing, censurable, secureEntry, bloqu
             onChangeText={onChange}
             keyboardType={keyboardType ?? 'default'}
             secureTextEntry={secureEntry && !visible}
+            multiline={multiline}
             autoCapitalize="none"
             autoCorrect={false}
             placeholderTextColor="#BDBDBD"
@@ -84,17 +86,17 @@ export default function MiCuentaScreen({ navigation }) {
   // ── CONEXIÓN BACKEND — perfil ─────────────────────────────────────────
   // Obtener datos reales del usuario desde authStore (guardados al hacer login)
   const user = useAuthStore((s) => s.user);
+  const setUser = useAuthStore((s) => s.setUser);
 
   // Estado inicial del form usando datos del store (mientras carga la API)
   const usuarioInicial = {
     nombre:     user?.name       ?? 'Usuario',
     avatar:     user?.avatarUrl  ?? null,
     correo:     user?.email      ?? '',
-    contrasena: '••••••••••••••••',    // nunca se muestra la contraseña real
-    passwordActual: '',
-    nuevaPassword: '',
+    contrasena: 'Protegida por seguridad',
     telefono:   user?.telefono   ?? '',
     documento:  user?.documento  ?? '',
+    direccion:  user?.direccion  ?? '',
     idUsuario:  String(user?.id  ?? ''),
   };
   // ─────────────────────────────────────────────────────────────────────
@@ -106,6 +108,11 @@ export default function MiCuentaScreen({ navigation }) {
   const [form, setForm] = useState({ ...usuarioInicial });
   // @TASK: Conserva el último perfil obtenido para restaurarlo al cancelar la edición.
   const [formInicial, setFormInicial] = useState({ ...usuarioInicial });
+  const [saving, setSaving] = useState(false);
+  const [passwordModalVisible, setPasswordModalVisible] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState(usuarioInicial.correo);
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState('');
 
   // @API: Obtiene el perfil real del usuario autenticado al montar la pantalla.
   useEffect(() => {
@@ -125,15 +132,15 @@ export default function MiCuentaScreen({ navigation }) {
           nombre: perfil.nombre ?? '',
           avatar: perfil.foto ? `data:image/jpeg;base64,${perfil.foto}` : null,
           correo: perfil.email ?? '',
-          contrasena: '••••••••••••••••',
-          passwordActual: '',
-          nuevaPassword: '',
+          contrasena: 'Protegida por seguridad',
           telefono: perfil.telefono ?? '',
           documento: perfil.documento ?? '',
+          direccion: perfil.direccion ?? '',
           idUsuario: String(perfil.registroId ?? perfil.personaId ?? ''),
         };
         setForm(perfilForm);
         setFormInicial(perfilForm);
+        setForgotEmail(perfilForm.correo);
       } catch (error) {
         if (activo) {
           Alert.alert('Error', error?.response?.data?.message || 'No se pudo obtener tu perfil.');
@@ -159,6 +166,39 @@ export default function MiCuentaScreen({ navigation }) {
     .toUpperCase()
     .slice(0, 2);
 
+  const handlePasswordRecovery = async () => {
+    const emailRegex = /\S+@\S+\.\S+/;
+    const email = forgotEmail.trim();
+
+    if (!email) {
+      setForgotError('Ingresá tu correo electrónico.');
+      return;
+    }
+    if (!emailRegex.test(email)) {
+      setForgotError('El formato del mail no es válido.');
+      return;
+    }
+
+    setForgotLoading(true);
+    setForgotError('');
+
+    try {
+      await api.post(ENDPOINTS.FORGOT_PASSWORD, { email });
+      setForgotLoading(false);
+      setPasswordModalVisible(false);
+      navigation.navigate('VerifyCode', { email, returnTo: 'MiCuenta' });
+    } catch (err) {
+      setForgotLoading(false);
+      setForgotError('No se pudo enviar el código. Verificá tu conexión e intentá de nuevo.');
+    }
+  };
+
+  const abrirModalPassword = () => {
+    setForgotEmail(form.correo || user?.email || '');
+    setForgotError('');
+    setPasswordModalVisible(true);
+  };
+
   const handleFAB = () => {
     if (!editing) {
       setEditing(true);
@@ -174,44 +214,50 @@ export default function MiCuentaScreen({ navigation }) {
           style: 'cancel',
           onPress: () => {
             // @TASK: Restaura los datos reales cargados, sin conservar contraseñas ingresadas.
-            setForm({ ...formInicial, passwordActual: '', nuevaPassword: '' });
+            setForm({ ...formInicial });
             setEditing(false);
           },
         },
         {
           text: 'Guardar',
-          onPress: () => {
+          onPress: async () => {
             // // TODO Avance 03: authStore.updateUser(form) → PATCH /users/me
             // console.log('[MiCuenta] Guardar:', form);
             // setEditing(false);
 
             // ── CONEXIÓN BACKEND — guardar perfil ──────────────────────────
             // @API: PUT /api/users/me actualiza los campos que admite el backend.
-            api.put(ENDPOINTS.ME, {
-              nombre:   form.nombre,
-              telefono: form.telefono,
-              email:    form.correo,
-              documento: form.documento,
-              ...(form.nuevaPassword && {
-                passwordActual: form.passwordActual,
-                nuevaPassword: form.nuevaPassword,
-              }),
-            })
-              .then(() => {
-                // Perfil actualizado correctamente
-                // @TASK: Actualiza el respaldo y elimina las contraseñas de memoria tras guardar.
-                const formGuardado = { ...form, passwordActual: '', nuevaPassword: '' };
-                setForm(formGuardado);
-                setFormInicial(formGuardado);
-                setEditing(false);
-              })
-              .catch((err) => {
-                // Si falla el servidor mostrar error al usuario
-                Alert.alert(
-                  'Error',
-                  err?.response?.data?.message || 'No se pudo guardar. Intentá de nuevo.'
-                );
+            try {
+              setSaving(true);
+              await api.put(ENDPOINTS.ME, {
+                nombre:    form.nombre,
+                telefono:  form.telefono,
+                email:     form.correo,
+                documento: form.documento,
+                direccion: form.direccion,
               });
+
+              const formGuardado = { ...form, contrasena: 'Protegida por seguridad' };
+              setForm(formGuardado);
+              setFormInicial(formGuardado);
+              await setUser({
+                ...user,
+                name: formGuardado.nombre,
+                email: formGuardado.correo,
+                telefono: formGuardado.telefono,
+                documento: formGuardado.documento,
+                direccion: formGuardado.direccion,
+              });
+              setEditing(false);
+              Alert.alert('Listo', 'Tu perfil fue actualizado correctamente.');
+            } catch (err) {
+              Alert.alert(
+                'Error',
+                err?.response?.data?.message || 'No se pudo guardar. Intentá de nuevo.'
+              );
+            } finally {
+              setSaving(false);
+            }
             // ──────────────────────────────────────────────────────────────
           },
         },
@@ -293,23 +339,18 @@ export default function MiCuentaScreen({ navigation }) {
             keyboardType="email-address"
           />
           <Campo
-            label={editing ? 'Contraseña actual' : 'Contraseña'}
-            value={editing ? form.passwordActual : form.contrasena}
-            onChange={set('passwordActual')}
-            editing={editing}
-            censurable={true}
-            secureEntry={true}
+            label="Contraseña"
+            value={form.contrasena}
+            onChange={() => {}}
+            editing={false}
+            censurable={false}
+            bloqueado={true}
           />
           {editing && (
-            <Campo
-              // @TASK: Captura la nueva contraseña requerida por PUT /api/users/me.
-              label="Nueva contraseña"
-              value={form.nuevaPassword}
-              onChange={set('nuevaPassword')}
-              editing={true}
-              censurable={true}
-              secureEntry={true}
-            />
+            <TouchableOpacity style={styles.passwordChangeBtn} onPress={abrirModalPassword} activeOpacity={0.85}>
+              <Ionicons name="key-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.passwordChangeBtnText}>Cambiar contraseña</Text>
+            </TouchableOpacity>
           )}
           <Campo
             label="Numero de telefono"
@@ -327,6 +368,14 @@ export default function MiCuentaScreen({ navigation }) {
             censurable={true}
             keyboardType="numeric"
           />
+          <Campo
+            label="Dirección"
+            value={form.direccion}
+            onChange={set('direccion')}
+            editing={editing}
+            censurable={false}
+            multiline
+          />
           {/* ID de usuario: nunca editable */}
           <Campo
             label="Id usuario"
@@ -341,16 +390,67 @@ export default function MiCuentaScreen({ navigation }) {
 
       {/* ── FAB: lápiz en vista, tilde en edición ── */}
       <TouchableOpacity
-        style={styles.fab}
+        style={[styles.fab, saving && styles.fabDisabled]}
         onPress={handleFAB}
         activeOpacity={0.85}
+        disabled={saving}
       >
-        <Ionicons
-          name={editing ? 'checkmark' : 'pencil'}
-          size={editing ? 26 : 22}
-          color="#FFFFFF"
-        />
+        {saving ? (
+          <ActivityIndicator color="#FFFFFF" />
+        ) : (
+          <Ionicons
+            name={editing ? 'checkmark' : 'pencil'}
+            size={editing ? 26 : 22}
+            color="#FFFFFF"
+          />
+        )}
       </TouchableOpacity>
+
+      <Modal transparent visible={passwordModalVisible} animationType="fade" onRequestClose={() => setPasswordModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <TouchableOpacity
+              style={styles.modalClose}
+              onPress={() => setPasswordModalVisible(false)}
+            >
+              <Text style={styles.modalCloseText}>✕</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.modalTitulo}>Cambiar contraseña</Text>
+            <Text style={styles.modalSubtextoTop}>
+              Te enviaremos un código para validar tu identidad.
+            </Text>
+
+            <TextInput
+              style={[styles.modalInput, forgotError ? styles.modalInputError : null]}
+              value={forgotEmail}
+              onChangeText={(t) => { setForgotEmail(t); setForgotError(''); }}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder="Tu correo electrónico"
+              placeholderTextColor="#777"
+            />
+
+            {forgotError ? <Text style={styles.modalError}>{forgotError}</Text> : null}
+
+            <TouchableOpacity
+              style={[styles.modalBtn, forgotLoading && styles.fabDisabled]}
+              onPress={handlePasswordRecovery}
+              disabled={forgotLoading}
+            >
+              {forgotLoading
+                ? <ActivityIndicator color="#FFFFFF" />
+                : <Text style={styles.modalBtnText}>Enviar</Text>
+              }
+            </TouchableOpacity>
+
+            <Text style={styles.modalSubtexto}>
+              Después vas a poder escribir tu nueva contraseña.
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -495,6 +595,28 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#E0E0E0',
   },
+  passwordChangeBtn: {
+    marginTop: 8,
+    marginBottom: 8,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#8B0000',
+    borderRadius: 12,
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+    gap: 8,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 4,
+  },
+  passwordChangeBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
 
   // FAB
   fab: {
@@ -512,5 +634,94 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.25,
     shadowRadius: 6,
+  },
+  fabDisabled: {
+    opacity: 0.65,
+  },
+
+  // Modal cambio de contraseña
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: '#00000066',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  modalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+  },
+  modalClose: {
+    position: 'absolute',
+    top: 14,
+    right: 16,
+  },
+  modalCloseText: {
+    fontSize: 18,
+    color: '#555555',
+  },
+  modalTitulo: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#1A1A1A',
+    marginBottom: 8,
+  },
+  modalSubtextoTop: {
+    fontSize: 13,
+    color: '#555555',
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 16,
+  },
+  modalInput: {
+    width: '100%',
+    height: 48,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    fontSize: 15,
+    marginBottom: 12,
+    color: '#1A1A1A',
+  },
+  modalInputError: {
+    borderWidth: 1.5,
+    borderColor: '#C62828',
+  },
+  modalError: {
+    fontSize: 12,
+    color: '#C62828',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalBtn: {
+    backgroundColor: '#8b0000',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 40,
+    marginBottom: 12,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+  },
+  modalBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 15,
+  },
+  modalSubtexto: {
+    fontSize: 13,
+    color: '#555555',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });

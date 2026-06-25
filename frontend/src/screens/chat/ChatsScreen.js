@@ -124,13 +124,19 @@ export default function ChatsScreen({ navigation }) {
     });
   };
 
+  const handleBackToHome = () => {
+    navigation.navigate('Main');
+  };
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
 
       {/* ── Header ──────────────────────────────── */}
       <View style={styles.header}>
-        <View style={{ width: 34 }} />
-        <Text style={styles.headerTitle}>Mensajes</Text>
+        <TouchableOpacity style={styles.backBtn} onPress={handleBackToHome} activeOpacity={0.7}>
+          <Ionicons name="chevron-back" size={26} color="#1A1A1A" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>SubasChat</Text>
         <View style={{ width: 34 }} />
       </View>
 
@@ -155,7 +161,7 @@ export default function ChatsScreen({ navigation }) {
       ) : (
         <FlatList
           data={filtered}
-          keyExtractor={item => String(item.id)}
+          keyExtractor={(item, index) => String(item.conversacionId || item.id || index)}
           renderItem={({ item }) => <ChatRow item={item} onPress={handleOpenChat} />}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           contentContainerStyle={{ paddingBottom: insets.bottom + 16, flexGrow: 1 }}
@@ -193,6 +199,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
+  },
+  backBtn: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 18,

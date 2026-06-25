@@ -162,7 +162,7 @@ export default function CargarBienScreen({ navigation }) {
       setModalVisible(false);
       if (!submitError) {
         resetForm();
-        navigation?.navigate('Home');
+        navigation?.navigate('Main');
       }
     });
   };

@@ -11,6 +11,7 @@ import {
   TouchableWithoutFeedback,
   Switch,
   Alert,
+  PanResponder,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,8 +24,6 @@ import { ENDPOINTS } from '../../constants/api';
 const LOGO             = require('../../assets/images/texto_appbar.jpeg');
 const IMG_PLACEHOLDER1 = require('../../assets/images/imagen_menu1.jpeg');
 const IMG_PLACEHOLDER2 = require('../../assets/images/imagen_menu2.jpeg');
-const USER_AVATAR      = require('../../assets/images/avatar.jpeg');
-
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = SCREEN_WIDTH * 0.78;
 
@@ -43,7 +42,7 @@ const DRAWER_GROUPS = [
   [
     { label: 'Pujar',           icon: 'flag-outline',      nav: 'PujarAuth', navParams: { auctionType: 'comun' } },
     { label: 'Cargar producto', icon: 'add-circle-outline',    nav: 'CargarProducto'},
-    { label: 'Mensajes',        icon: 'mail-outline',          nav: 'Search' },
+    { label: 'Mensajes',        icon: 'mail-outline',          nav: 'Chats' },
   ],
   [
     { label: 'Cerrar sesion',   icon: 'log-out-outline',       nav: null, isLogout: true },
@@ -52,12 +51,78 @@ const DRAWER_GROUPS = [
 
 // Notificaciones de ejemplo (vacío = muestra el placeholder)
 // const NOTIFICATIONS = [];
+const obtenerNombreUsuario = (user) =>
+  user?.name || user?.nombre || user?.email || 'Usuario';
+
+const obtenerIniciales = (nombre = '') => {
+  const partes = String(nombre).trim().split(/\s+/).filter(Boolean);
+  const letras = partes.length > 1
+    ? `${partes[0][0]}${partes[1][0]}`
+    : String(nombre).slice(0, 2);
+  return letras.toUpperCase() || 'US';
+};
+
+function NotificationSwipeItem({ item, theme, onDelete }) {
+  const translateX = useRef(new Animated.Value(0)).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        Math.abs(gestureState.dx) > 12 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
+      onPanResponderMove: (_, gestureState) => {
+        translateX.setValue(Math.max(-120, Math.min(120, gestureState.dx)));
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (Math.abs(gestureState.dx) > 85) {
+          Animated.timing(translateX, {
+            toValue: gestureState.dx > 0 ? SCREEN_WIDTH : -SCREEN_WIDTH,
+            duration: 180,
+            useNativeDriver: true,
+          }).start(() => onDelete(item.identificador));
+        } else {
+          Animated.spring(translateX, {
+            toValue: 0,
+            useNativeDriver: true,
+            bounciness: 4,
+            speed: 18,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
+  return (
+    <View style={styles.notifSwipeWrap}>
+      <View style={styles.notifDeleteBg}>
+        <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
+        <Text style={styles.notifDeleteText}>Eliminar</Text>
+      </View>
+      <Animated.View
+        {...panResponder.panHandlers}
+        style={[
+          styles.notifItemCard,
+          { backgroundColor: theme.surface, transform: [{ translateX }] },
+        ]}
+      >
+        <Text style={[styles.notifItemTitle, { color: theme.secondary }]} numberOfLines={1}>
+          {item.titulo}
+        </Text>
+        <Text style={[styles.notifItemMessage, { color: theme.placeholder }]} numberOfLines={3}>
+          {item.mensaje}
+        </Text>
+      </Animated.View>
+    </View>
+  );
+}
 
 export default function HomeAuthenticatedScreen({ navigation }) {
   const { theme, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState(0);
   const logout = useAuthStore((state) => state.logout);
+  const user = useAuthStore((state) => state.user);
+  const userName = obtenerNombreUsuario(user);
+  const userInitials = obtenerIniciales(userName);
 
   // ── Hamburger menu state ─────────────────────
   const [menuOpen, setMenuOpen] = useState(false);
@@ -92,6 +157,28 @@ export default function HomeAuthenticatedScreen({ navigation }) {
 
   const notificacionesSinLeer = notifications.filter((notificacion) => !notificacion.leido).length;
 
+  const marcarNotificacionesComoLeidas = useCallback(async () => {
+    const haySinLeer = notifications.some((notificacion) => !notificacion.leido);
+    if (!haySinLeer) return;
+    setNotifications((prev) => prev.map((notificacion) => ({ ...notificacion, leido: true })));
+    try {
+      await api.patch(ENDPOINTS.NOTIF_READ_ALL);
+    } catch (err) {
+      console.log('Error marking notifications as read:', err);
+      fetchNotifs();
+    }
+  }, [fetchNotifs, notifications]);
+
+  const eliminarNotificacion = useCallback(async (id) => {
+    setNotifications((prev) => prev.filter((notificacion) => notificacion.identificador !== id));
+    try {
+      await api.delete(ENDPOINTS.NOTIF_DELETE(id));
+    } catch (err) {
+      console.log('Error deleting notification:', err);
+      fetchNotifs();
+    }
+  }, [fetchNotifs]);
+
   // ── Hamburger helpers ────────────────────────
   const openMenu = () => {
     setMenuOpen(true);
@@ -122,7 +209,7 @@ export default function HomeAuthenticatedScreen({ navigation }) {
       return;
     }
     if (!item.nav) return;
-    const TABS = ['Home', 'Search', 'Calendar', 'Chats', 'Profile'];
+    const TABS = ['Home', 'Calendar', 'Chats', 'Profile'];
     if (TABS.includes(item.nav)) {
       navigation.navigate(item.nav);
     } else {
@@ -134,6 +221,7 @@ export default function HomeAuthenticatedScreen({ navigation }) {
   // ── Notification helpers ─────────────────────
   const openNotif = () => {
     setNotifOpen(true);
+    marcarNotificacionesComoLeidas();
     Animated.parallel([
       Animated.spring(notifAnim,    { toValue: 1, useNativeDriver: true, bounciness: 3, speed: 14 }),
       Animated.timing(notifOverlay, { toValue: 1, duration: 260, useNativeDriver: true }),
@@ -208,7 +296,7 @@ export default function HomeAuthenticatedScreen({ navigation }) {
               style={styles.menuButton}
               onPress={() => {
                 if (!btn.nav) return;
-                const TABS = ['Home', 'Search', 'Calendar', 'Chats', 'Profile'];
+                const TABS = ['Home', 'Calendar', 'Chats', 'Profile'];
                 if (TABS.includes(btn.nav)) {
                   navigation.navigate(btn.nav);
                 } else {
@@ -269,7 +357,12 @@ export default function HomeAuthenticatedScreen({ navigation }) {
                   <Text style={[styles.notifEmpty, { color: theme.placeholder }]}>{'<<No hay notificaciones>>'}</Text>
                 ) : (
                   notifications.map((n) => (
-                    <Text key={n.identificador} style={styles.notifItem}>{n.titulo}: {n.mensaje}</Text>
+                    <NotificationSwipeItem
+                      key={n.identificador}
+                      item={n}
+                      theme={theme}
+                      onDelete={eliminarNotificacion}
+                    />
                   ))
                 )}
               </View>
@@ -337,8 +430,10 @@ export default function HomeAuthenticatedScreen({ navigation }) {
         </TouchableOpacity>
 
         <View style={styles.profileSection}>
-          <Image source={USER_AVATAR} style={styles.avatar} />
-          <Text style={[styles.userName, { color: theme.secondary }]}>Nombre del usuario</Text>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarInitials}>{userInitials}</Text>
+          </View>
+          <Text style={[styles.userName, { color: theme.secondary }]}>{userName}</Text>
         </View>
 
         <ScrollView style={styles.drawerScroll} showsVerticalScrollIndicator={false}>
@@ -479,20 +574,51 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderRadius: 10,
     minHeight: 80,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 20,
-    paddingHorizontal: 16,
+    alignItems: 'stretch',
+    justifyContent: 'flex-start',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    gap: 8,
   },
   notifEmpty: {
     fontSize: 13,
     color: '#888',
     fontStyle: 'italic',
   },
-  notifItem: {
+  notifSwipeWrap: {
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: 10,
+  },
+  notifDeleteBg: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#8b0000',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    gap: 6,
+  },
+  notifDeleteText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  notifItemCard: {
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#F0D8C8',
+  },
+  notifItemTitle: {
     fontSize: 14,
-    color: '#1a1a1a',
-    paddingVertical: 4,
+    fontWeight: '800',
+    marginBottom: 3,
+  },
+  notifItemMessage: {
+    fontSize: 13,
+    lineHeight: 18,
   },
   notifDivider: {
     height: 1,
@@ -545,7 +671,10 @@ const styles = StyleSheet.create({
     borderWidth: 2.5,
     borderColor: '#D4A598',
     backgroundColor: '#F0D8CC',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  avatarInitials: { fontSize: 24, fontWeight: '800', color: '#8b0000' },
   userName: {
     fontSize: 17, fontWeight: '700', color: '#1a1a1a',
   },

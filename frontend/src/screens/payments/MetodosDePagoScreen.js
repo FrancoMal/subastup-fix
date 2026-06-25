@@ -17,7 +17,7 @@ import { ENDPOINTS } from '../../constants/api';
 // ─── Barra de navegación inferior ────────────────────────────────────────────
 const BOTTOM_NAV_TABS = [
   { name: 'Main',           label: 'Inicio',   icon: 'home-outline' },
-  { name: 'Mensajes',       label: 'Mensajes', icon: 'mail-outline' },
+  { name: 'Chats',          label: 'Mensajes', icon: 'mail-outline' },
   { name: 'CargarProducto', label: 'Publicar', icon: 'add-circle-outline' },
   { name: 'PujarAuth',      label: 'Pujar',    icon: 'flag-outline' },
 ];
@@ -75,8 +75,8 @@ export default function MetodosDePagoScreen({ navigation }) {
   const handleBottomNav = (tabName) => {
     if (tabName === 'Main') {
       navigation.navigate('Main');
-    } else if (tabName === 'Mensajes') {
-      navigation.navigate('Mensajes');
+    } else if (tabName === 'Chats') {
+      navigation.navigate('Chats');
     } else if (tabName === 'CargarProducto') {
       navigation.navigate('CargarProducto');
     } else if (tabName === 'PujarAuth') {

@@ -21,6 +21,7 @@ export default function VerifyCodeScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { theme } = useAppTheme();
   const email  = route?.params?.email ?? '';
+  const returnTo = route?.params?.returnTo;
 
   const [codigo,    setCodigo]   = useState('');
   const [loading,   setLoading]  = useState(false);
@@ -45,7 +46,7 @@ export default function VerifyCodeScreen({ navigation, route }) {
       const response = await api.post(ENDPOINTS.VERIFY_CODE, { email, code: codigo });
       setLoading(false);
       // El backend devuelve { ok: true, message, resetToken }
-      navigation.navigate('ResetPassword', { resetToken: response.resetToken });
+      navigation.navigate('ResetPassword', { resetToken: response.resetToken, returnTo });
     } catch (err) {
       setLoading(false);
       const msg = err.response?.data?.message || 'El código ingresado no es válido. Revisá tu mail e intentá de nuevo.';
@@ -69,10 +70,10 @@ export default function VerifyCodeScreen({ navigation, route }) {
       {/* ── Btn volver ── */}
       <TouchableOpacity
         style={styles.backBtn}
-        onPress={() => navigation.navigate('Login')}
+        onPress={() => navigation.navigate(returnTo || 'Login')}
       >
         <Ionicons name="arrow-back" size={22} color={theme.primary} />
-        <Text style={[styles.backText, { color: theme.primary }]}>Volver al login</Text>
+        <Text style={[styles.backText, { color: theme.primary }]}>{returnTo ? 'Volver' : 'Volver al login'}</Text>
       </TouchableOpacity>
 
       {/* ── Logo ── */}
