@@ -17,6 +17,7 @@ import { useAppTheme } from '../../context/ThemeContext';
 import api from '../../services/api';
 import { ENDPOINTS } from '../../constants/api';
 import useAuthStore from '../../store/authStore';
+import { dataUriFromBase64 } from '../../utils/images';
 
 // ─── Componente de campo (vista + edición unificados) ────────────────────────
 const Campo = ({ label, value, onChange, editing, censurable, secureEntry, bloqueado, keyboardType, multiline }) => {
@@ -130,7 +131,7 @@ export default function MiCuentaScreen({ navigation }) {
         // @TASK: Adapta el contrato del backend a los campos usados por el formulario.
         const perfilForm = {
           nombre: perfil.nombre ?? '',
-          avatar: perfil.foto ? `data:image/jpeg;base64,${perfil.foto}` : null,
+          avatar: dataUriFromBase64(perfil.foto),
           correo: perfil.email ?? '',
           contrasena: 'Protegida por seguridad',
           telefono: perfil.telefono ?? '',

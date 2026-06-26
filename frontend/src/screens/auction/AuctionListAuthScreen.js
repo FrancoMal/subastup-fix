@@ -12,6 +12,7 @@ import {
   Animated,
   TouchableWithoutFeedback,
   Switch,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +21,7 @@ import api from '../../services/api';
 import { ENDPOINTS } from '../../constants/api';
 import useAuthStore from '../../store/authStore';
 import { formatearFechaHoraSubasta, normalizarEstadoSubasta } from '../../utils/auctionState';
+import { imageSourceFromBase64 } from '../../utils/images';
 
 const LOGO        = require('../../assets/images/texto_appbar.jpeg');
 
@@ -160,8 +162,12 @@ export default function AuctionListAuthScreen({ navigation, route }) {
           ? data.resultados
           : [];
       setProductos(subastas.map((subasta) => ({
-        id: subasta.subastaId,
+        id: subasta.itemId ? `${subasta.subastaId}-${subasta.itemId}` : String(subasta.subastaId),
+        subastaId: subasta.subastaId,
+        itemId: subasta.itemId,
+        productoId: subasta.productoId,
         titulo: subasta.nombreArticulo || 'Subasta',
+        descripcion: subasta.descripcionArticulo || '',
         moneda: subasta.moneda || 'ARS',
         proximamente: normalizarEstadoSubasta(subasta.estado) === 'proximamente',
         fecha: subasta.fecha,
@@ -266,6 +272,17 @@ export default function AuctionListAuthScreen({ navigation, route }) {
     }
   };
 
+  const agregarRecordatorioDesdeCard = async (event, item) => {
+    event?.stopPropagation?.();
+    if (!item?.subastaId) return;
+    try {
+      const respuesta = await api.post(ENDPOINTS.NOTIF_SUB(item.subastaId));
+      Alert.alert('Recordatorio', respuesta?.message || `Recordatorio de ${item.titulo} agregado correctamente.`);
+    } catch (error) {
+      Alert.alert('Recordatorio', error?.response?.data?.message || 'No se pudo agregar el recordatorio.');
+    }
+  };
+
   // ── Cards ────────────────────────────────────
   // TODO BACKEND: el campo `item.color` desaparece cuando llegue `item.imagenUrl` de Cloudinary.
   // En renderCard, reemplazar el <View style={cardImage} /> por:
@@ -274,11 +291,11 @@ export default function AuctionListAuthScreen({ navigation, route }) {
     <TouchableOpacity
       style={[styles.card, index % 2 === 0 ? { marginRight: 6 } : { marginLeft: 6 }, { backgroundColor: theme.surface }]}
       activeOpacity={0.85}
-      onPress={() => navigation.navigate('AuctionDetailAuth', { productId: item.id })}
+      onPress={() => navigation.navigate('AuctionDetailAuth', { productId: item.subastaId, itemId: item.itemId })}
     >
       {item.portada ? (
         <Image
-          source={{ uri: `data:image/jpeg;base64,${item.portada}` }}
+          source={imageSourceFromBase64(item.portada)}
           style={styles.cardImage}
           resizeMode="cover"
         />
@@ -295,11 +312,18 @@ export default function AuctionListAuthScreen({ navigation, route }) {
           <Ionicons name="notifications-outline" size={22} color={theme.secondary} />
           <Text style={[styles.proximamenteTitulo, { color: theme.secondary }]}>Proximamente</Text>
           <Text style={styles.proximamenteFecha}>{item.fechaTexto}</Text>
+          <TouchableOpacity
+            style={[styles.recordatorioMiniBtn, { backgroundColor: theme.primary }]}
+            onPress={(event) => agregarRecordatorioDesdeCard(event, item)}
+          >
+            <Text style={styles.recordatorioMiniText}>Agregar recordatorio</Text>
+          </TouchableOpacity>
         </View>
       )}
 
       <View style={[styles.cardFooter, { backgroundColor: theme.primary }]}>
         <Text style={[styles.cardTitulo, { color: theme.white }]} numberOfLines={1}>{item.titulo}</Text>
+        {!!item.descripcion && <Text style={styles.cardDesc} numberOfLines={1}>{item.descripcion}</Text>}
       </View>
     </TouchableOpacity>
   );
@@ -655,16 +679,25 @@ const styles = StyleSheet.create({
   },
   proximamenteTitulo: { fontSize: 13, fontWeight: '700', color: '#1A1A1A', marginTop: 4 },
   proximamenteFecha:  { fontSize: 11, color: '#555555', marginTop: 2 },
+  recordatorioMiniBtn: {
+    marginTop: 8,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  recordatorioMiniText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
   cardFooter: {
     position: 'absolute',
     bottom: 0, left: 0, right: 0,
-    height: 40,
+    minHeight: 48,
     backgroundColor: '#8b0000',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 6,
+    paddingVertical: 5,
   },
   cardTitulo: { fontSize: 13, color: '#FFFFFF', fontWeight: '600', textAlign: 'center' },
+  cardDesc: { fontSize: 10, color: '#F7EAEA', textAlign: 'center', marginTop: 1 },
 
   // Overlay compartido
   overlay: {

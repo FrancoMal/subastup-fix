@@ -20,6 +20,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAppTheme } from '../../context/ThemeContext';
 import api from '../../services/api';
 import { ENDPOINTS } from '../../constants/api';
+import { imagePayloadFromPicked, normalizePickedImage } from '../../utils/images';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const MIN_IMAGES = 6; // mínimo requerido
@@ -175,13 +176,13 @@ export default function CargarBienScreen({ navigation }) {
     try {
       // ── CONEXIÓN BACKEND — crear producto ────────────────────────────
       // POST /api/products
-      // El backend espera: { nombre, descripcionCompleta, fotosBase64: string[] }
+      // El backend espera: { nombre, descripcionCompleta, fotos: [{ base64, mimeType }] }
       // Nota: El PDF de ficha técnica aún no es procesado por el backend en esta versión,
       // pero lo dejamos preparado en el frontend.
       const payload = {
         nombre: nombre,
         descripcionCompleta: descripcion,
-        fotosBase64: images.map(img => img.base64).filter(Boolean),
+        fotos: images.map(imagePayloadFromPicked).filter((img) => img.base64),
       };
 
       await api.post(ENDPOINTS.PRODUCTS, payload);
@@ -225,11 +226,11 @@ export default function CargarBienScreen({ navigation }) {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsMultipleSelection: true,
-      quality: 0.85,
+      quality: 0.65,
       base64: true,
     });
     if (!result.canceled && result.assets?.length > 0) {
-      setImages(prev => [...prev, ...result.assets.map(a => ({ uri: a.uri, base64: a.base64 }))]);
+      setImages(prev => [...prev, ...result.assets.map(normalizePickedImage)]);
     }
   };
 

@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
 import { ENDPOINTS } from '../../constants/api';
+import { imageSourceFromBase64 } from '../../utils/images';
 
 const FILTROS = ['Recientes', 'Antiguas', 'Ganadas', 'Perdidas'];
 
@@ -87,7 +88,7 @@ export default function HistorialPujasScreen({ navigation }) {
         <View style={styles.fotoContainer}>
           {item.portada ? (
             <Image
-              source={{ uri: `data:image/jpeg;base64,${item.portada}` }}
+              source={imageSourceFromBase64(item.portada)}
               style={styles.foto}
               resizeMode="cover"
             />

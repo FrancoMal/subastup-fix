@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import api from '../../services/api';
 import { ENDPOINTS } from '../../constants/api';
+import { imageSourceFromBase64 } from '../../utils/images';
 
 // ─────────────────────────────────────────────
 //  Datos mock (Fallback)
@@ -42,7 +43,7 @@ function ChatRow({ item, onPress }) {
 
   // Fallback image
   const imageSource = item.portada
-    ? { uri: `data:image/jpeg;base64,${item.portada}` }
+    ? imageSourceFromBase64(item.portada)
     : item.image || require('../../assets/images/imagen_menu1.jpeg');
 
   return (

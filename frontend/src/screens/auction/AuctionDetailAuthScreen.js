@@ -26,6 +26,7 @@ import api from '../../services/api';
 import { ENDPOINTS } from '../../constants/api';
 import useAuthStore from '../../store/authStore';
 import { formatearFechaHoraSubasta, normalizarEstadoSubasta } from '../../utils/auctionState';
+import { dataUriFromBase64 } from '../../utils/images';
 
 const LOGO        = require('../../assets/images/texto_appbar.jpeg');
 
@@ -170,6 +171,7 @@ const mostrarToast = (msg) => {
 export default function AuctionDetailAuthScreen({ navigation, route }) {
   const insets    = useSafeAreaInsets();
   const productId = route?.params?.productId ?? '1';
+  const itemIdParam = route?.params?.itemId ? Number(route.params.itemId) : null;
   // const producto  = PRODUCTOS_MOCK[productId] ?? PRODUCTOS_MOCK['1'];
 
   const user = useAuthStore((s) => s.user);
@@ -196,10 +198,12 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
       try {
         setLoading(true);
         // GET /api/auctions/:id devuelve { ok, subasta: { articulos: [] } }.
-        // La pantalla trabaja con un único ítem, por lo que toma el primero.
+        // La pantalla trabaja con un único ítem: usa el seleccionado desde la card.
         const data = await api.get(ENDPOINTS.AUCTION_BY_ID(productId));
         const subasta = data?.subasta;
-        const articulo = subasta?.articulos?.[0];
+        const articulo = itemIdParam
+          ? subasta?.articulos?.find((item) => Number(item.itemId) === itemIdParam)
+          : subasta?.articulos?.[0];
 
         if (!subasta || !articulo?.itemId) {
           throw new Error('La subasta no contiene un artículo disponible.');
@@ -214,12 +218,13 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
           titulo: estadoPuja?.nombre || articulo.nombre || 'Producto',
           descripcion: estadoPuja?.descripcion || 'Sin descripción disponible.',
           imagenes: (estadoPuja?.fotos || []).map((foto) =>
-            foto?.foto ? `data:image/jpeg;base64,${foto.foto}` : null
+            dataUriFromBase64(foto?.foto, foto?.mimeType)
           ),
           coloresPlaceholder: ['#C9B99A'],
           moneda: estadoPuja?.moneda || articulo.moneda || 'ARS',
           ultimaPuja: estadoPuja?.pujaActual ?? articulo.precioBase ?? 0,
           categoria: estadoPuja?.categoria || subasta.categoria || 'comun',
+          duenioId: estadoPuja?.duenioId || null,
           estado: estadoNormalizado,
           fechaProximamente: formatearFechaHoraSubasta(subasta.fecha, subasta.hora),
           enlace: null,
@@ -241,7 +246,7 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
       }
     };
     cargarProducto();
-  }, [productId]);
+  }, [productId, itemIdParam]);
   // ─────────────────────────────────────────────────────────────────────
 
   // ── Contador regresivo ────────────────────────
@@ -369,6 +374,11 @@ export default function AuctionDetailAuthScreen({ navigation, route }) {
   const abrirTecladoPuja = async () => {
     try {
       setVerificandoRequisitos(true);
+      if (producto?.duenioId && String(producto.duenioId) === String(user?.id || user?.personaId)) {
+        setMensajeRestriccion('No podés pujar por este artículo porque vos lo publicaste.');
+        setModalRestriccion(true);
+        return;
+      }
       const categoriaUsuario = user?.categoria || 'comun';
       const categoriaSubasta = producto?.categoria || 'comun';
       if (!categoriaAlcanza(categoriaUsuario, categoriaSubasta)) {

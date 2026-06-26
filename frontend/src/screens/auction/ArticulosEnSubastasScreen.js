@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import api from '../../services/api';
 import { ENDPOINTS } from '../../constants/api';
+import { imageSourceFromBase64 } from '../../utils/images';
 
 const COLORS = {
   primary: '#8B0000',
@@ -29,6 +30,7 @@ const COLORS = {
 
 const ESTADO_CONFIG = {
   pendiente: { label: 'Pendiente', color: COLORS.warning },
+  aprobado: { label: 'Aprobado', color: COLORS.success },
   en_inspeccion: { label: 'Artículo en revisión', color: COLORS.warning },
   esperando_usuario: { label: 'Esperando confirmación final', color: COLORS.success },
   confirmado: { label: 'Aceptado', color: COLORS.success },
@@ -75,10 +77,13 @@ export default function ArticulosEnSubastasScreen({ navigation }) {
       <TouchableOpacity
         style={styles.card}
         activeOpacity={0.75}
-        onPress={() => navigation.navigate('ArticuloEnSubastaDetalle', { productoId: item.productoId || item.identificador })}
+        onPress={() => navigation.navigate('ArticuloEnSubastaDetalle', {
+          productoId: item.productoId || item.identificador,
+          productoResumen: item,
+        })}
       >
         {item.portada ? (
-          <Image source={{ uri: `data:image/jpeg;base64,${item.portada}` }} style={styles.image} />
+          <Image source={imageSourceFromBase64(item.portada)} style={styles.image} />
         ) : (
           <View style={[styles.image, styles.imagePlaceholder]}>
             <Ionicons name="cube-outline" size={28} color={COLORS.border} />

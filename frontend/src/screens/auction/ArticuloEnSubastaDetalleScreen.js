@@ -9,11 +9,14 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+  FlatList,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import api from '../../services/api';
 import { ENDPOINTS } from '../../constants/api';
+import { imageSourceFromBase64 } from '../../utils/images';
 
 const COLORS = {
   primary: '#8B0000',
@@ -28,11 +31,18 @@ const COLORS = {
   danger: '#8B0000',
 };
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
 const ESTADOS = {
   pendiente: {
     label: 'Pendiente',
     color: COLORS.warning,
     texto: 'Tu producto fue enviado y todavía no fue revisado por un asesor.',
+  },
+  aprobado: {
+    label: 'Aprobado',
+    color: COLORS.success,
+    texto: 'Tu producto fue aprobado por el equipo de SubastUP.',
   },
   en_inspeccion: {
     label: 'Aprobado · artículo en revisión',
@@ -68,18 +78,41 @@ const formatearMonto = (valor, moneda = 'ARS') => {
 
 export default function ArticuloEnSubastaDetalleScreen({ navigation, route }) {
   const productoId = route?.params?.productoId;
+  const productoResumen = route?.params?.productoResumen;
   const [producto, setProducto] = useState(null);
   const [loading, setLoading] = useState(true);
   const [respondiendo, setRespondiendo] = useState(false);
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [errorDetalle, setErrorDetalle] = useState(null);
 
   const cargarDetalle = useCallback(async () => {
     if (!productoId) return;
     try {
       setLoading(true);
+      setErrorDetalle(null);
       const data = await api.get(ENDPOINTS.PRODUCT_BY_ID(productoId));
       setProducto(data?.producto || null);
     } catch (err) {
-      Alert.alert('Error', err?.response?.data?.message || 'No se pudo cargar el artículo.');
+      setErrorDetalle(err?.response?.data?.message || 'No se pudo cargar el detalle completo del artículo.');
+      if (productoResumen) {
+        setProducto({
+          identificador: productoResumen.productoId || productoResumen.identificador,
+          nombre: productoResumen.nombre,
+          estado: productoResumen.estado || 'pendiente',
+          fecha: productoResumen.fecha,
+          descripcionCompleta: productoResumen.descripcionCompleta || 'Sin descripción disponible.',
+          fotos: productoResumen.portada ? [{ id: 'portada', foto: productoResumen.portada }] : [],
+          propuesta: productoResumen.propuesta || {
+            itemId: productoResumen.itemId,
+            subastaId: productoResumen.subastaId,
+            precioBase: productoResumen.precioBase,
+            moneda: productoResumen.moneda,
+            fechaSubasta: productoResumen.fechaSubasta,
+            horaSubasta: productoResumen.horaSubasta,
+            lugarSubasta: productoResumen.lugarSubasta,
+          },
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -163,17 +196,36 @@ export default function ArticuloEnSubastaDetalleScreen({ navigation, route }) {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.imageRow}>
+        <View style={styles.carouselBox}>
           {fotos.length > 0 ? (
-            fotos.map((foto) => (
-              <Image
-                key={foto.id}
-                source={{ uri: `data:image/jpeg;base64,${foto.foto}` }}
-                style={styles.image}
+            <>
+              <FlatList
+                data={fotos}
+                keyExtractor={(foto, index) => String(foto.id || index)}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onScroll={(event) => {
+                  const slide = Math.round(event.nativeEvent.contentOffset.x / (SCREEN_WIDTH - 32));
+                  setActiveSlide(slide);
+                }}
+                scrollEventThrottle={16}
+                renderItem={({ item: foto }) => (
+                  <Image
+                    source={imageSourceFromBase64(foto.foto, foto.mimeType)}
+                    style={styles.carouselImage}
+                    resizeMode="cover"
+                  />
+                )}
               />
-            ))
+              <View style={styles.dotsRow}>
+                {fotos.map((foto, index) => (
+                  <View key={String(foto.id || index)} style={[styles.dot, index === activeSlide && styles.dotActive]} />
+                ))}
+              </View>
+            </>
           ) : (
-            <View style={[styles.image, styles.imagePlaceholder]}>
+            <View style={[styles.carouselImage, styles.imagePlaceholder]}>
               <Ionicons name="image-outline" size={28} color={COLORS.border} />
             </View>
           )}
@@ -181,6 +233,13 @@ export default function ArticuloEnSubastaDetalleScreen({ navigation, route }) {
 
         <Text style={styles.title}>{producto.nombre}</Text>
         <Text style={styles.date}>ID #{producto.identificador}</Text>
+
+        {errorDetalle ? (
+          <View style={styles.warningBox}>
+            <Ionicons name="information-circle-outline" size={18} color={COLORS.warning} />
+            <Text style={styles.warningText}>{errorDetalle}</Text>
+          </View>
+        ) : null}
 
         <View style={[styles.statusBox, { borderLeftColor: estadoConfig.color }]}>
           <Text style={[styles.statusLabel, { color: estadoConfig.color }]}>{estadoConfig.label}</Text>
@@ -252,6 +311,11 @@ export default function ArticuloEnSubastaDetalleScreen({ navigation, route }) {
             </TouchableOpacity>
           </View>
         ) : null}
+
+        <View style={[styles.estadoFinalBox, { borderColor: estadoConfig.color }]}>
+          <Text style={[styles.estadoFinalTitle, { color: estadoConfig.color }]}>Estado del artículo</Text>
+          <Text style={styles.estadoFinalText}>{estadoConfig.label}</Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -274,11 +338,29 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   emptyText: { color: COLORS.muted, fontSize: 15, textAlign: 'center' },
   content: { padding: 16, paddingBottom: 36 },
-  imageRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
-  image: { width: 92, height: 92, borderRadius: 12, backgroundColor: COLORS.border },
+  carouselBox: { marginBottom: 16 },
+  carouselImage: {
+    width: SCREEN_WIDTH - 32,
+    height: 260,
+    borderRadius: 16,
+    backgroundColor: COLORS.border,
+  },
   imagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  dotsRow: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 10 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.border },
+  dotActive: { width: 22, backgroundColor: COLORS.primary },
   title: { fontSize: 22, fontWeight: '900', color: COLORS.text, marginBottom: 4 },
   date: { fontSize: 12, color: COLORS.muted, marginBottom: 16 },
+  warningBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFF8E8',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 12,
+  },
+  warningText: { flex: 1, color: COLORS.warning, fontSize: 12, fontWeight: '700' },
   statusBox: {
     backgroundColor: COLORS.white,
     borderRadius: 14,
@@ -308,4 +390,13 @@ const styles = StyleSheet.create({
   acceptBtn: { backgroundColor: COLORS.primary },
   rejectText: { color: COLORS.primary, fontWeight: '900', fontSize: 15 },
   acceptText: { color: COLORS.white, fontWeight: '900', fontSize: 15 },
+  estadoFinalBox: {
+    backgroundColor: COLORS.white,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    padding: 14,
+    marginTop: 18,
+  },
+  estadoFinalTitle: { fontSize: 13, fontWeight: '900', marginBottom: 6 },
+  estadoFinalText: { fontSize: 16, fontWeight: '900', color: COLORS.text },
 });

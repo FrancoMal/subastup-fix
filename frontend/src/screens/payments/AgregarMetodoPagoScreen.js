@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../../services/api';
 import { ENDPOINTS } from '../../constants/api';
+import { dataUriFromBase64 } from '../../utils/images';
 
 // ─── Modal Confirmacion ──────────────────────────────────────────────────────
 const SaveConfirmModal = ({ visible, variant, title, message, onAccept }) => {
@@ -194,7 +195,7 @@ export default function AgregarMetodoPagoScreen({ navigation }) {
           fechaPago: `${anio}-${mes}-${dia}`,
           numeroSucursal: sucursal,
           numeroCheque,
-          imagen: fotoCheque?.base64 ? `data:image/jpeg;base64,${fotoCheque.base64}` : undefined,
+          imagen: dataUriFromBase64(fotoCheque?.base64) || undefined,
         });
         setModalConfig({
           variant: 'review',

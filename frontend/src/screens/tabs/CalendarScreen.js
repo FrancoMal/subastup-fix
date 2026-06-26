@@ -17,6 +17,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import api from '../../services/api';
 import { ENDPOINTS } from '../../constants/api';
 import { fechaSubastaLocal, formatearFechaHoraSubasta, normalizarEstadoSubasta } from '../../utils/auctionState';
+import { dataUriFromBase64 } from '../../utils/images';
 
 const LOGO = require('../../assets/images/texto_appbar.jpeg');
 const { width } = Dimensions.get('window');
@@ -93,8 +94,11 @@ export default function CalendarScreen({ navigation }) {
         const subastasMes = Array.isArray(data?.subastas) ? data.subastas : [];
         setSubastas(subastasMes.map((subasta) => ({
           id: subasta.subastaId,
+          itemId: subasta.itemId,
+          productoId: subasta.productoId,
           titulo: subasta.nombreArticulo || 'Subasta',
-          imagen: subasta.portada ? `data:image/jpeg;base64,${subasta.portada}` : null,
+          descripcion: subasta.descripcionArticulo || '',
+          imagen: dataUriFromBase64(subasta.portada),
           moneda: subasta.moneda || 'ARS',
           precioBase: Number(subasta.precioBase || 0),
           fecha: subasta.fecha,
@@ -187,7 +191,7 @@ export default function CalendarScreen({ navigation }) {
     <TouchableOpacity
       style={[styles.subastaCard, { backgroundColor: theme.background }]}
       activeOpacity={0.86}
-      onPress={() => navigation.navigate(isLoggedIn ? 'AuctionDetailAuth' : 'AuctionDetail', { productId: item.id })}
+      onPress={() => navigation.navigate(isLoggedIn ? 'AuctionDetailAuth' : 'AuctionDetail', { productId: item.id, itemId: item.itemId })}
     >
       {/* Imagen */}
       {item.imagen
@@ -198,6 +202,7 @@ export default function CalendarScreen({ navigation }) {
       {/* Info */}
       <View style={styles.subastaInfo}>
         <Text style={[styles.subastaTitulo, { color: theme.secondary }]} numberOfLines={1}>{item.titulo}</Text>
+        {!!item.descripcion && <Text style={styles.subastaDescripcion} numberOfLines={1}>{item.descripcion}</Text>}
         <Text style={styles.subastaDetalle}>{item.categoria || 'comun'} · {item.estado === 'vivo' ? 'Activa' : 'Proximamente'}</Text>
         <Text style={styles.subastaHora}>{item.fechaTexto}</Text>
       </View>
@@ -205,7 +210,7 @@ export default function CalendarScreen({ navigation }) {
       <TouchableOpacity
         style={styles.btnPujar}
         onPress={() => {
-          navigation.navigate(isLoggedIn ? 'AuctionDetailAuth' : 'AuctionDetail', { productId: item.id });
+          navigation.navigate(isLoggedIn ? 'AuctionDetailAuth' : 'AuctionDetail', { productId: item.id, itemId: item.itemId });
         }}
         activeOpacity={0.85}
       >
@@ -421,6 +426,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 10,
   },
   subastaTitulo:  { fontSize: 14, fontWeight: '700', color: '#1A1A1A' },
+  subastaDescripcion: { fontSize: 11, color: '#666666', marginTop: 1 },
   subastaDetalle: { fontSize: 12, color: '#888888', marginTop: 2 },
   subastaHora:    { fontSize: 11, color: '#8b0000', marginTop: 2, fontWeight: '600' },
 

@@ -1,9 +1,9 @@
-const ESTADOS_PROXIMAMENTE = ['programada', 'proximamente', 'pendiente', 'proxima'];
+const ESTADOS_PROXIMAMENTE = ['programada', 'proximamente', 'pendiente', 'proxima', 'próximamente'];
 
 export const normalizarEstadoSubasta = (estado, cerrado = false) => {
   if (cerrado) return 'finalizado';
   const valor = String(estado || '').toLowerCase();
-  if (valor === 'abierta' || valor === 'activo' || valor === 'vivo') return 'vivo';
+  if (valor === 'abierta' || valor === 'activa' || valor === 'activo' || valor === 'vivo') return 'vivo';
   if (ESTADOS_PROXIMAMENTE.includes(valor)) return 'proximamente';
   if (valor === 'cerrada' || valor === 'finalizada' || valor === 'finalizado') return 'finalizado';
   return valor || 'proximamente';

@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
 import { ENDPOINTS } from '../../constants/api';
+import { dataUriFromBase64 } from '../../utils/images';
 
 // ─────────────────────────────────────────────
 //  Datos mock — fallback
@@ -36,7 +37,7 @@ const normalizarMensaje = (mensaje) => ({
   fechaEnvio: mensaje.fecha || mensaje.fechaEnvio || mensaje.createdAt || new Date().toISOString(),
   isMine:    Boolean(mensaje.esMio || mensaje.isMine),
   type:      mensaje.imagen ? 'image' : 'text',
-  imageUri:  mensaje.imagen ? `data:image/jpeg;base64,${mensaje.imagen}` : null,
+  imageUri:  dataUriFromBase64(mensaje.imagen),
 });
 
 // ─────────────────────────────────────────────

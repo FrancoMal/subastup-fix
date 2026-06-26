@@ -15,6 +15,7 @@ import { ActivityIndicator } from 'react-native';
 import api from '../../services/api';
 import { ENDPOINTS } from '../../constants/api';
 import { formatearFechaHoraSubasta, normalizarEstadoSubasta } from '../../utils/auctionState';
+import { dataUriFromBase64 } from '../../utils/images';
 
 const LOGO  = require('../../assets/images/texto_appbar.jpeg');
 const { width } = Dimensions.get('window');
@@ -49,6 +50,7 @@ const { width } = Dimensions.get('window');
 export default function AuctionDetailScreen({ navigation, route }) {
   const insets    = useSafeAreaInsets();
   const productId = route?.params?.productId;
+  const itemIdParam = route?.params?.itemId ? Number(route.params.itemId) : null;
   // const producto  = PRODUCTO_MOCK; // ← reemplazar con fetch por productId
 
   const [producto, setProducto] = useState(null);
@@ -61,10 +63,12 @@ export default function AuctionDetailScreen({ navigation, route }) {
       try {
         setLoading(true);
         // GET /api/auctions/:id devuelve { ok, subasta: { articulos: [] } }.
-        // Esta pantalla muestra el primer artículo de la subasta sin habilitar pujas.
+        // Esta pantalla muestra el artículo seleccionado de la subasta sin habilitar pujas.
         const data = await api.get(ENDPOINTS.AUCTION_BY_ID(productId));
         const subasta = data?.subasta;
-        const articulo = subasta?.articulos?.[0];
+        const articulo = itemIdParam
+          ? subasta?.articulos?.find((item) => Number(item.itemId) === itemIdParam)
+          : subasta?.articulos?.[0];
 
         if (!subasta || !articulo?.itemId) {
           throw new Error('La subasta no contiene un artículo disponible.');
@@ -73,7 +77,7 @@ export default function AuctionDetailScreen({ navigation, route }) {
         const estadoPuja = await api.get(ENDPOINTS.BID_STATUS(articulo.itemId));
         const estadoNormalizado = normalizarEstadoSubasta(subasta.estado, estadoPuja?.cerrado);
         const imagenes = (estadoPuja?.fotos || []).map((foto) =>
-          foto?.foto ? `data:image/jpeg;base64,${foto.foto}` : null
+          dataUriFromBase64(foto?.foto, foto?.mimeType)
         );
 
         setProducto({
@@ -98,7 +102,7 @@ export default function AuctionDetailScreen({ navigation, route }) {
       }
     };
     cargarProducto();
-  }, [productId]);
+  }, [productId, itemIdParam]);
   // ─────────────────────────────────────────────────────────────────────
 
   const [activeSlide, setActiveSlide] = useState(0);
