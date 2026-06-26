@@ -115,9 +115,18 @@ const SUBASTAS = [
 
 const COLORES = [[139, 0, 0], [162, 59, 0], [47, 72, 88]];
 
+// Bienes que un usuario publicó y están pendientes de revisión por la empresa
+// (aparecen en la pestaña "Bienes" del panel admin). Los de conChat suman ademas
+// una conversación con el admin (pestaña "Mensajes", logueado como admin).
+const BIENES_PENDIENTES = [
+  { nombre: 'Lámpara art déco restaurada',    duenioEmail: 'demo1@subastup.com', desc: 'Lámpara art déco original, cableado restaurado y en funcionamiento.', conChat: true },
+  { nombre: 'Colección de estampillas raras', duenioEmail: 'demo2@subastup.com', desc: 'Álbum de estampillas argentinas y extranjeras, décadas del 40 al 60.' },
+  { nombre: 'Reloj de péndulo de madera',     duenioEmail: 'demo4@subastup.com', desc: 'Reloj de péndulo de roble, funcionando, con su llave original.',       conChat: true },
+];
+
 // ── Inserción (asume la base recién truncada / vacía) ──────────
 async function seedDemo(prisma) {
-  const resumen = { staff: 0, cuentas: 0, subastas: 0, finalizadas: 0 };
+  const resumen = { staff: 0, cuentas: 0, subastas: 0, finalizadas: 0, bienesPendientes: 0, conversaciones: 0 };
 
   // Equipo: empleado verificador + subastador (mismas personas).
   const personaEquipo = await prisma.personas.create({
@@ -132,11 +141,13 @@ async function seedDemo(prisma) {
   const verificador = empleado.identificador;
 
   // Staff (admin / revisor).
+  const staffPorEmail = {};
   for (const s of STAFF) {
     const salt = await bcrypt.genSalt(10);
     const persona = await prisma.personas.create({
       data: { documento: s.doc, nombre: s.nombre, direccion: 'Sede', estado: 'activo' },
     });
+    staffPorEmail[s.email] = persona.identificador;
     const registro = await prisma.registros.create({
       data: { persona: persona.identificador, email: s.email, telefono: '1100000000', estado: 'aprobado', rol: s.rol, categoria: 'platino' },
     });
@@ -286,6 +297,37 @@ async function seedDemo(prisma) {
       resumen.finalizadas += 1;
     }
     resumen.subastas += 1;
+  }
+
+  // ── Bienes pendientes de revisión + conversaciones admin↔usuario ──
+  const adminId = staffPorEmail['admin@subastup.com'];
+  for (const bien of BIENES_PENDIENTES) {
+    const duenioId = personaPorEmail[bien.duenioEmail];
+    const producto = await prisma.productos.create({
+      data: { fecha: new Date(), disponible: 'si', descripcionCatalogo: bien.desc, descripcionCompleta: bien.desc, revisor: verificador, duenio: duenioId },
+    });
+    await prisma.productosDetalle.create({
+      data: { producto: producto.identificador, nombre: bien.nombre, estado: 'pendiente', revisor: verificador, direccionEnvio: 'Domicilio del usuario' },
+    });
+    await prisma.fotos.createMany({
+      data: COLORES.slice(0, 2).map((color) => ({ producto: producto.identificador, foto: pngDemo(color) })),
+    });
+    resumen.bienesPendientes += 1;
+
+    if (bien.conChat && adminId) {
+      const conv = await prisma.conversaciones.create({
+        data: { producto: producto.identificador, duenio: duenioId, empleado: adminId, estado: 'activo' },
+      });
+      const mensajes = [
+        { emisor: adminId,  texto: `Hola, somos del equipo de SubastUP. Estamos revisando "${bien.nombre}". ¿Nos contás un poco más sobre su estado y procedencia?` },
+        { emisor: duenioId, texto: 'Hola! Está en muy buen estado, lo tengo hace años. Cualquier dato que necesiten, a disposición.' },
+        { emisor: adminId,  texto: 'Perfecto, gracias. Te confirmamos el resultado de la revisión en breve.' },
+      ];
+      for (const m of mensajes) {
+        await prisma.mensajes.create({ data: { conversacion: conv.identificador, emisor: m.emisor, texto: m.texto, leido: false } });
+      }
+      resumen.conversaciones += 1;
+    }
   }
 
   return resumen;
