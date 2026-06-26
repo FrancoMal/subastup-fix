@@ -3,6 +3,7 @@
 
 const prisma = require('../config/prisma');
 const { crearNotificacion } = require('./notificacionesController');
+const { bufferImagenABase64, imagenBase64ABuffer } = require('../utils/imagenes');
 
 // ─────────────────────────────────────────────────────────────
 // GET /api/chat
@@ -43,7 +44,7 @@ exports.listarConversaciones = async (req, res) => {
         conversacionId:  c.identificador,
         productoId:      c.producto,
         nombreProducto:  c.productos?.detalle?.nombre || 'Producto',
-        portada:         foto ? Buffer.from(foto).toString('base64') : null,
+        portada:         bufferImagenABase64(foto),
         estado:          c.estado,
         ultimoMensaje:   ultimoMensaje?.texto || null,
         ultimaFecha:     ultimoMensaje?.fecha  || c.fechaCreacion,
@@ -107,7 +108,7 @@ exports.getMensajes = async (req, res) => {
     const resultado = mensajes.map((m) => ({
       mensajeId: m.identificador,
       texto:     m.texto,
-      imagen:    m.imagen ? Buffer.from(m.imagen).toString('base64') : null,
+      imagen:    bufferImagenABase64(m.imagen),
       fecha:     m.fecha,
       esMio:     m.emisor === personaId,
       leido:     m.leido,
@@ -160,7 +161,7 @@ exports.enviarMensaje = async (req, res) => {
 
     // Convertir imagen si viene en base64
     const imagenBuffer = imagenBase64
-      ? Buffer.from(imagenBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64')
+      ? imagenBase64ABuffer(imagenBase64)?.buffer
       : null;
 
     const mensaje = await prisma.mensajes.create({

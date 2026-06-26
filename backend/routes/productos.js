@@ -19,6 +19,8 @@ router.use(auth);
 
 // Usuario
 router.post('/',                          cargarProducto);
+router.get('/mine',                       misProductos);
+router.get('/mine/confirmed',             misArticulosEnSubastas);
 router.get('/pending-review',             productosPendientes);
 router.put('/:id/respond',                responderPropuesta);
 

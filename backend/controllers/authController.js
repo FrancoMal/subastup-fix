@@ -5,6 +5,7 @@ require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const jwt    = require('jsonwebtoken');
 const prisma = require('../config/prisma');
+const { imagenBase64ABuffer } = require('../utils/imagenes');
 
 const {
   enviarResetPassword,
@@ -179,6 +180,8 @@ exports.register = async (req, res) => {
     const direccionCompleta = [direccion, numero, ciudad, codigoPostal, pais]
       .filter(Boolean)
       .join(', ');
+    const fotoFrenteBuffer = foto1Base64 ? imagenBase64ABuffer(foto1Base64)?.buffer : null;
+    const fotoDorsoBuffer  = foto2Base64 ? imagenBase64ABuffer(foto2Base64)?.buffer : null;
 
     // Transacción: persona + registro + login + fotosDNI
     const resultado = await prisma.$transaction(async (tx) => {
@@ -189,7 +192,7 @@ exports.register = async (req, res) => {
           nombre:    `${nombre.trim()} ${apellido.trim()}`,
           direccion: direccionCompleta || null,
           estado:    'activo',
-          foto:      foto1Base64 ? Buffer.from(foto1Base64.replace(/^data:image\/\w+;base64,/, ''), 'base64') : null,
+          foto:      fotoFrenteBuffer,
         },
       });
 
@@ -216,21 +219,21 @@ exports.register = async (req, res) => {
       });
 
       // 4. Fotos DNI
-      if (foto1Base64) {
+      if (fotoFrenteBuffer) {
         await tx.fotosDNI.create({
           data: {
             registro: registro.identificador,
             tipo:     'frente',
-            foto:     Buffer.from(foto1Base64.replace(/^data:image\/\w+;base64,/, ''), 'base64'),
+            foto:     fotoFrenteBuffer,
           },
         });
       }
-      if (foto2Base64) {
+      if (fotoDorsoBuffer) {
         await tx.fotosDNI.create({
           data: {
             registro: registro.identificador,
             tipo:     'dorso',
-            foto:     Buffer.from(foto2Base64.replace(/^data:image\/\w+;base64,/, ''), 'base64'),
+            foto:     fotoDorsoBuffer,
           },
         });
       }

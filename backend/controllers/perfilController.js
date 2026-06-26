@@ -3,6 +3,7 @@
 
 const bcrypt = require('bcryptjs');
 const prisma  = require('../config/prisma');
+const { bufferImagenABase64, imagenBase64ABuffer } = require('../utils/imagenes');
 
 // ─────────────────────────────────────────────────────────────
 // GET /api/perfil
@@ -32,7 +33,7 @@ exports.getPerfil = async (req, res) => {
         direccion:     p.direccion,
         email:         registro.email,
         rol:           registro.rol,
-        foto:          p.foto ? Buffer.from(p.foto).toString('base64') : null,
+        foto:          bufferImagenABase64(p.foto),
         fechaRegistro: registro.fechaRegistro,
       },
     });
@@ -103,11 +104,7 @@ exports.editarPerfil = async (req, res) => {
     }
 
     // ── Foto ────────────────────────────────────────────────────
-    let fotoBuffer = null;
-    if (fotoBase64) {
-      const base64Data = fotoBase64.replace(/^data:image\/\w+;base64,/, '');
-      fotoBuffer = Buffer.from(base64Data, 'base64');
-    }
+    const fotoBuffer = fotoBase64 ? imagenBase64ABuffer(fotoBase64)?.buffer : null;
 
     // ── Actualizar en transacción ───────────────────────────────
     await prisma.$transaction(async (tx) => {

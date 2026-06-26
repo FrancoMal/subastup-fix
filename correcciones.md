@@ -259,3 +259,75 @@
 - Cambio frontend: `InformacionScreen` ahora lee correctamente `estadisticas` desde la respuesta real de `GET /api/users/me/stats`, por lo que ganadas, perdidas, pujas realizadas y total gastado reflejan los cierres.
 - Compatibilidad: no se agregaron rutas nuevas y no se modificaron las tablas base de la consigna.
 - Validación local: `npx prisma validate`, `node --check` en controllers y pantallas modificadas exitosos.
+
+## Imágenes: base64 en transporte y Bytes en PostgreSQL
+
+- Estado: aplicado; pendiente de prueba manual subiendo un producto con fotos desde Expo.
+- Archivos backend: `backend/utils/imagenes.js`, `backend/controllers/productosController.js`, `backend/controllers/subastasController.js`, `backend/controllers/pujasController.js`, `backend/controllers/estadisticasController.js`, `backend/controllers/chatController.js`, `backend/controllers/perfilController.js`, `backend/controllers/pagosController.js` y `backend/controllers/authController.js`.
+- Archivos frontend: `frontend/src/utils/images.js`, `frontend/src/screens/auction/CargarProductoScreen.js`, `frontend/src/screens/auction/AuctionListScreen.js`, `frontend/src/screens/auction/AuctionListAuthScreen.js`, `frontend/src/screens/auction/AuctionDetailScreen.js`, `frontend/src/screens/auction/AuctionDetailAuthScreen.js`, `frontend/src/screens/auction/ArticulosEnSubastasScreen.js`, `frontend/src/screens/auction/ArticuloEnSubastaDetalleScreen.js`, `frontend/src/screens/auction/HistorialPujasScreen.js`, `frontend/src/screens/chat/ChatsScreen.js`, `frontend/src/screens/chat/ChatDetailScreen.js`, `frontend/src/screens/profile/MiCuentaScreen.js`, `frontend/src/screens/payments/AgregarMetodoPagoScreen.js` y `frontend/src/screens/tabs/CalendarScreen.js`.
+- Documentación: se creó `flujodefotos.md` y se agregó el contrato técnico en `BACKEND_CONTRATO.md`.
+- Cambio backend: se agregó helper común para limpiar base64, convertir base64 a `Buffer`, convertir `Bytes` a base64 y formar respuestas de fotos.
+- Cambio backend: productos ahora acepta el contrato nuevo `fotos: [{ base64, mimeType }]` y conserva compatibilidad con `fotosBase64: string[]`.
+- Cambio backend: las fotos se guardan como `Bytes`/`bytea` en PostgreSQL, no como texto base64.
+- Cambio backend: se agregó límite de 2MB por imagen luego de compresión y máximo 12 fotos por producto.
+- Cambio frontend: carga de producto envía fotos con `{ base64, mimeType }` y usa compresión `quality: 0.65`.
+- Cambio frontend: se agregó helper común para renderizar base64 como `Image source`, evitando repetir `data:image/jpeg;base64,` en todas las pantallas.
+- Compatibilidad: no se modificaron tablas base ni rutas existentes.
+
+## Control de endpoints contra Excel de primera entrega
+
+- Estado: aplicado y verificado.
+- Archivo revisado/actualizado: `SubastUp_API_Endpoints_v3_FINAL.xlsx`.
+- Confirmación base de datos: no se modificó `backend/prisma/schema.prisma`, no se crearon migraciones, no se ejecutó `db push` y no se alteraron tablas base de `estructurabasica.sql`.
+- Cambio: se compararon las rutas montadas en `backend/server.js` + `backend/routes/*.js` contra el Excel de endpoints.
+- Cambio: se agregaron aliases de compatibilidad para respetar endpoints presentes en la primera entrega: `GET /api/products/mine`, `GET /api/products/mine/confirmed`, `POST /api/settings/payment-methods`, `GET /api/auctions/search/suggestions` y `POST /api/auctions/upload-images`.
+- Cambio: se agregaron al Excel las rutas actuales que faltaban: `GET /notifications/unread-count`, `DELETE /notifications/{id}`, `GET /users/me/auctions/confirmed` y `PUT /products/{id}/respond`.
+- Resultado de cruce: Excel 58 endpoints; backend montado 58 endpoints; diferencias 0.
+- Nota: se generó backup automático `SubastUp_API_Endpoints_v3_FINAL.xlsx.bak` antes de modificar el Excel.
+
+## Seed demo para probar fotos
+
+- Estado: aplicado; pendiente de ejecución contra la base de pruebas.
+- Archivo: `backend/prisma/seed_fotos_demo.js`.
+- Cambio: se creó un seed idempotente que genera una subasta demo programada, catálogo, producto, ítem y 6 imágenes PNG guardadas como `Bytes` en la tabla base `fotos`.
+- Objetivo: probar el circuito completo de fotos sin depender de subir imágenes manualmente desde Expo.
+- Compatibilidad: no modifica `schema.prisma`, no crea tablas nuevas y no altera las tablas base; solo inserta datos de prueba usando las tablas existentes.
+- Validación local: `node --check backend/prisma/seed_fotos_demo.js` y `npx prisma validate` exitosos.
+
+## Artículos propios en subasta, fotos y bloqueo de puja del dueño
+
+- Estado: aplicado; pendiente de ejecutar seeds y verificar en Expo.
+- Archivos backend: `backend/controllers/productosController.js`, `backend/controllers/pujasController.js`, `backend/prisma/seed_demo.js` y `backend/prisma/seed_fotos_demo.js`.
+- Archivos frontend: `frontend/src/screens/auction/ArticulosEnSubastasScreen.js`, `frontend/src/screens/auction/ArticuloEnSubastaDetalleScreen.js` y `frontend/src/screens/auction/AuctionDetailAuthScreen.js`.
+- Cambio backend: el estado de puja devuelve `duenioId` para que el frontend pueda reconocer si el usuario logueado es dueño del artículo.
+- Cambio backend: `POST /api/bids` bloquea desde servidor la puja del dueño con mensaje `No podés pujar por este artículo porque vos lo publicaste.`
+- Cambio backend: respuestas de productos propios ahora incluyen `itemId`, `subastaId`, `estadoSubasta` y `categoriaSubasta` cuando el artículo ya tiene ítem/catálogo/subasta asociados.
+- Cambio frontend: al entrar desde “Tus artículos en subasta”, se pasa el resumen del producto como fallback para evitar pantalla vacía si el detalle completo falla.
+- Cambio frontend: `ArticuloEnSubastaDetalleScreen` muestra carrusel grande de fotos, textos del producto, propuesta si existe y un cartel final con el estado del artículo.
+- Cambio frontend: se agregó el estado `aprobado` al mapa visual de la card y del detalle para evitar que un artículo aprobado se muestre como pendiente al entrar.
+- Cambio frontend: `AuctionDetailAuthScreen` muestra popup si el dueño intenta participar en la puja de su propio artículo.
+- Cambio seed: `seed_fotos_demo.js` ahora genera PNG reales en bytes en lugar de SVG, para que React Native pueda renderizarlas como imagen.
+- Cambio seed: `seed_demo.js` agrega fotos PNG demo a productos existentes que no tengan fotos, incluyendo `Radio antigua programada demo`.
+- Compatibilidad: no se modificaron tablas base, no se modificó `schema.prisma`, no se agregaron rutas nuevas.
+- Validación local: `npx prisma validate`, `node --check` en controllers, seeds y pantallas modificadas exitosos.
+
+## Categorías y subastas unitarias
+
+- Estado: aplicado; pendiente de ejecutar normalización contra la base de pruebas y verificar en Expo.
+- Regla confirmada: una card publicada representa una subasta y una subasta publicada tiene un solo artículo.
+- Archivos backend: `backend/controllers/subastasController.js`, `backend/controllers/productosController.js` y `backend/prisma/normalizar_subastas_unitarias.js`.
+- Archivos frontend: `frontend/src/screens/auction/AuctionListScreen.js`, `frontend/src/screens/auction/AuctionListAuthScreen.js`, `frontend/src/screens/auction/AuctionDetailScreen.js` y `frontend/src/screens/auction/AuctionDetailAuthScreen.js`.
+- Cambio backend: los listados de subastas vuelven a devolver una card por subasta, usando el único artículo asociado a esa subasta.
+- Cambio backend: cada card incluye `itemId` y `productoId` del artículo publicado para que el frontend pueda abrir el detalle exacto.
+- Cambio backend: al aprobar un producto, si el catálogo elegido ya tiene otro artículo, se crea una subasta y catálogo propios para ese producto, copiando categoría/datos base, sin modificar tablas de la consigna.
+- Cambio backend: si un producto ya tenía ítem dentro de un catálogo compartido, al volver a aprobarlo se mueve a una subasta/catálogo propio.
+- Cambio backend: se agregó `normalizar_subastas_unitarias.js` para reacomodar datos viejos de prueba que hayan quedado con más de un artículo en la misma subasta.
+- Cambio frontend: las cards envían `subastaId` + `itemId` al detalle, evitando abrir por accidente el primer artículo de otra subasta/catálogo.
+- Cambio backend: las cards de subasta ahora exponen datos del artículo asociado: `itemId`, `productoId`, nombre, descripción, precio base, moneda, categoría, estado, fecha/hora y portada.
+- Cambio frontend: las cards de subasta autenticadas/no autenticadas muestran nombre y descripción breve del artículo, además del overlay de `Proximamente` con fecha/hora cuando corresponde.
+- Cambio frontend: las cards en estado `Proximamente` ahora muestran botón `Agregar recordatorio`; autenticado registra el recordatorio contra `/api/notifications/subscribe/:auctionId`, no autenticado pide iniciar sesión.
+- Cambio frontend: se normalizan estados `activa`, `activo`, `abierta` y `vivo` como subasta activa; `programada`, `proximamente`, `próximamente`, `pendiente` y `proxima` como próxima.
+- Cambio frontend: `CalendarScreen` recibe `itemId`/`productoId`, muestra descripción breve y navega al detalle con `subastaId + itemId`.
+- Cambio calendario: las subastas programadas/activas del mes siguen marcando el día correspondiente y aparecen en la lista inferior del calendario.
+- Compatibilidad: no se modificó `schema.prisma`, no se modificaron tablas base y no se agregaron endpoints nuevos.
+- Validación local: `npx prisma validate` y `node --check` en controllers, pantallas y script nuevo exitosos.

@@ -2,6 +2,7 @@
 // Métodos de pago — Prisma + PostgreSQL
 
 const prisma = require('../config/prisma');
+const { bufferImagenABase64, imagenBase64ABuffer } = require('../utils/imagenes');
 
 // ─────────────────────────────────────────────────────────────
 // GET /api/pagos
@@ -61,9 +62,7 @@ exports.listarMetodos = async (req, res) => {
           fechaPago:      m.cheques.fechaPago,
           numeroSucursal: m.cheques.numeroSucursal,
           numeroCheque:   m.cheques.numeroCheque,
-          imagen:         m.cheques.imagen
-            ? Buffer.from(m.cheques.imagen).toString('base64')
-            : null,
+          imagen:         bufferImagenABase64(m.cheques.imagen),
         };
       }
 
@@ -182,9 +181,7 @@ exports.agregarCheque = async (req, res) => {
     if (!nombreBanco || !fechaPago || !numeroCheque)
       return res.status(400).json({ ok: false, message: 'Nombre del banco, fecha de pago y número de cheque son obligatorios.' });
 
-    const imagenBuffer = imagen
-      ? Buffer.from(imagen.replace(/^data:image\/\w+;base64,/, ''), 'base64')
-      : null;
+    const imagenBuffer = imagen ? imagenBase64ABuffer(imagen)?.buffer : null;
 
     const metodo = await prisma.$transaction(async (tx) => {
       const mp = await tx.metodosPago.create({
@@ -215,6 +212,22 @@ exports.agregarCheque = async (req, res) => {
     console.error('agregarCheque error:', err);
     return res.status(500).json({ ok: false, message: 'Error al agregar el cheque.' });
   }
+};
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/settings/payment-methods
+// Alias compatible con la primera entrega. Despacha por `tipo`.
+// Body: { tipo: 'tarjeta'|'banco'|'cheque', ...datos }
+// ─────────────────────────────────────────────────────────────
+exports.agregarMetodoGenerico = async (req, res) => {
+  const tipo = String(req.body?.tipo || '').toLowerCase();
+  if (tipo === 'tarjeta') return exports.agregarTarjeta(req, res);
+  if (tipo === 'banco') return exports.agregarBanco(req, res);
+  if (tipo === 'cheque') return exports.agregarCheque(req, res);
+  return res.status(400).json({
+    ok: false,
+    message: 'Tipo de método de pago inválido. Usá tarjeta, banco o cheque.',
+  });
 };
 
 // ─────────────────────────────────────────────────────────────

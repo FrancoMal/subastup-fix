@@ -8,7 +8,9 @@ const {
   subastasDia,
   detalleSubasta,
   linkStream,
-  obtenerSubastas
+  obtenerSubastas,
+  sugerenciasBusqueda,
+  uploadImagesCompat,
 } = require('../controllers/subastasController');
 const { cargarProducto, responderPropuesta } = require('../controllers/productosController');
 
@@ -16,6 +18,8 @@ const { cargarProducto, responderPropuesta } = require('../controllers/productos
 router.get('/',                        obtenerSubastas);
 router.get('/calendar',                calendario);
 router.get('/today',                   subastasDia);
+router.get('/search/suggestions',      sugerenciasBusqueda);
+router.post('/upload-images', auth,    uploadImagesCompat);
 router.get('/:id',                     detalleSubasta);
 router.get('/:id/share-link',          linkStream);
 

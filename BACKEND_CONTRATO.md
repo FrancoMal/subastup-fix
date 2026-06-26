@@ -48,3 +48,19 @@ El archivo `backend/prisma/crear_extensiones.sql` crea únicamente las cuatro ta
 - Las tablas satélite fueron creadas y verificadas en PostgreSQL.
 - La reconciliación de tablas base se ejecutó solo porque la base de pruebas estaba vacía.
 - Datos demo verificados: 4 usuarios, 4 productos, 4 ítems y 4 pujas con sus metadatos de fecha.
+
+## Contrato de imágenes
+
+- El frontend envía imágenes como base64 por JSON.
+- El contrato recomendado para productos es `fotos: [{ base64, mimeType }]`.
+- Por compatibilidad, el backend todavía acepta `fotosBase64: string[]`.
+- El backend convierte base64 a `Buffer` y persiste en PostgreSQL como `Bytes`/`bytea`.
+- La base no guarda strings base64 para fotos de productos; guarda bytes.
+- Al responder, el backend convierte los bytes a base64 y devuelve `{ id, mimeType, foto }`.
+- El frontend usa helpers para convertir base64 a `Image source`.
+- Límite actual: máximo 12 fotos por producto y máximo 2MB por imagen luego de compresión.
+
+Helpers:
+
+- Backend: `backend/utils/imagenes.js`.
+- Frontend: `frontend/src/utils/images.js`.

@@ -8,6 +8,7 @@ const {
   agregarTarjeta,
   agregarBanco,
   agregarCheque,
+  agregarMetodoGenerico,
   eliminarMetodo,
   metodosPendientesVerificacion,
   verificarMetodo,
@@ -17,6 +18,7 @@ router.use(auth);
 
 // Usuario
 router.get('/',                          listarMetodos);
+router.post('/',                         agregarMetodoGenerico);
 router.post('/card',                     agregarTarjeta);
 router.post('/bank',                     agregarBanco);
 router.post('/check',                    agregarCheque);

@@ -3,6 +3,7 @@
 
 const prisma = require('../config/prisma');
 const { enviarMail } = require('../services/mailService');
+const { bufferImagenABase64, fotoARespuesta, imagenBase64ABuffer } = require('../utils/imagenes');
 
 const MENSAJE_PRODUCTO_RECIBIDO =
   'Recibimos tu producto para revisión. Un asesor de SubastUP se va a comunicar por este chat para continuar el proceso.';
@@ -10,6 +11,13 @@ const MENSAJE_PROPUESTA_ACEPTADA =
   'Confirmaste la propuesta. Tu artículo queda aceptado para avanzar al circuito de subasta.';
 const MENSAJE_PROPUESTA_RECHAZADA =
   'Rechazaste la propuesta. El circuito queda cerrado y coordinaremos los próximos pasos si corresponde.';
+
+function horaTextoADate(hora = '15:00') {
+  const [hh = '15', mm = '00'] = String(hora).split(':');
+  const fecha = new Date('1970-01-01T00:00:00.000Z');
+  fecha.setUTCHours(parseInt(hh, 10) || 0, parseInt(mm, 10) || 0, 0, 0);
+  return fecha;
+}
 
 // ─────────────────────────────────────────────────────────────
 // POST /api/productos
@@ -19,16 +27,24 @@ const MENSAJE_PROPUESTA_RECHAZADA =
 exports.cargarProducto = async (req, res) => {
   try {
     const { personaId } = req.user;
-    const { nombre, descripcionCompleta, fotosBase64 } = req.body;
+    const { nombre, descripcionCompleta, fotosBase64, fotos } = req.body;
+    const fotosPayload = Array.isArray(fotos) && fotos.length > 0 ? fotos : fotosBase64;
 
     if (!nombre || !descripcionCompleta)
       return res.status(400).json({ ok: false, message: 'Nombre y descripción son obligatorios.' });
 
-    if (!fotosBase64 || fotosBase64.length === 0)
+    if (!Array.isArray(fotosPayload) || fotosPayload.length === 0)
       return res.status(400).json({ ok: false, message: 'Debe subir al menos una foto.' });
 
-    if (fotosBase64.length > 12)
+    if (fotosPayload.length > 12)
       return res.status(400).json({ ok: false, message: 'Máximo 12 fotos por producto.' });
+
+    const fotosProcesadas = fotosPayload.map((foto) =>
+      imagenBase64ABuffer(typeof foto === 'string' ? foto : foto?.base64)
+    );
+
+    if (fotosProcesadas.some((foto) => !foto?.buffer))
+      return res.status(400).json({ ok: false, message: 'Todas las fotos deben enviarse en base64 válido.' });
 
     // Verificar que la persona sea dueño
     const duenio = await prisma.duenios.findFirst({
@@ -63,13 +79,9 @@ exports.cargarProducto = async (req, res) => {
         data: { producto: p.identificador, nombre, estado: 'pendiente' },
       });
 
-      for (const fotoBase64 of fotosBase64) {
-        const fotoBuffer = Buffer.from(
-          fotoBase64.replace(/^data:image\/\w+;base64,/, ''),
-          'base64'
-        );
+      for (const foto of fotosProcesadas) {
         await tx.fotos.create({
-          data: { producto: p.identificador, foto: fotoBuffer },
+          data: { producto: p.identificador, foto: foto.buffer },
         });
       }
 
@@ -138,6 +150,9 @@ exports.cargarProducto = async (req, res) => {
     });
 
   } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ ok: false, message: err.message });
+    }
     console.error('cargarProducto error:', err);
     return res.status(500).json({ ok: false, message: 'Error al cargar el producto.' });
   }
@@ -159,10 +174,19 @@ exports.misProductos = async (req, res) => {
         fotos: { take: 1 },
         itemsCatalogo: {
           select: {
+            identificador: true,
             precioBase: true,
             comision:   true,
             subastado:  true,
             detalle:    true,
+            catalogos: {
+              select: {
+                subasta: true,
+                subastas: {
+                  select: { estado: true, categoria: true, fecha: true, hora: true, ubicacion: true },
+                },
+              },
+            },
           },
         },
       },
@@ -183,8 +207,12 @@ exports.misProductos = async (req, res) => {
           motivoRechazo: p.detalle?.motivoRechazo || null,
           direccionEnvio: p.detalle?.direccionEnvio || null,
           descripcionCatalogo: p.descripcionCatalogo,
-          portada: foto ? Buffer.from(foto).toString('base64') : null,
+          portada: bufferImagenABase64(foto),
           propuesta: propuesta ? {
+            itemId: propuesta.identificador,
+            subastaId: propuesta.catalogos?.subasta || null,
+            estadoSubasta: propuesta.catalogos?.subastas?.estado || null,
+            categoriaSubasta: propuesta.catalogos?.subastas?.categoria || null,
             precioBase: propuesta.precioBase,
             comision: propuesta.comision,
             moneda: propuesta.detalle?.moneda || 'ARS',
@@ -224,6 +252,14 @@ exports.detalleProducto = async (req, res) => {
             comision:      true,
             subastado:     true,
             detalle:       true,
+            catalogos: {
+              select: {
+                subasta: true,
+                subastas: {
+                  select: { estado: true, categoria: true, fecha: true, hora: true, ubicacion: true },
+                },
+              },
+            },
           },
         },
       },
@@ -232,14 +268,14 @@ exports.detalleProducto = async (req, res) => {
     if (!producto)
       return res.status(404).json({ ok: false, message: 'Producto no encontrado.' });
 
-    const fotosBase64 = producto.fotos.map((f) => ({
-      id:   f.identificador,
-      foto: Buffer.from(f.foto).toString('base64'),
-    }));
+    const fotosBase64 = producto.fotos.map(fotoARespuesta).filter(Boolean);
 
     const itemPropuesta = producto.itemsCatalogo?.[0] || null;
     const propuesta = itemPropuesta ? {
       itemId: itemPropuesta.identificador,
+      subastaId: itemPropuesta.catalogos?.subasta || null,
+      estadoSubasta: itemPropuesta.catalogos?.subastas?.estado || null,
+      categoriaSubasta: itemPropuesta.catalogos?.subastas?.categoria || null,
       precioBase: itemPropuesta.precioBase,
       comision: itemPropuesta.comision,
       subastado: itemPropuesta.subastado,
@@ -480,17 +516,94 @@ exports.aprobarProducto = async (req, res) => {
         },
       });
 
-      const item = await tx.itemsCatalogo.create({
-        data: {
-          catalogo:     catalogoId,
-          producto:     id,
-          precioBase:   parseFloat(precioBase),
-          comision:     parseFloat(comision),
-          subastado:    'no',
+      let catalogoDestinoId = parseInt(catalogoId, 10);
+      const catalogoBase = await tx.catalogos.findFirst({
+        where: { identificador: catalogoDestinoId },
+        include: {
+          subastas: true,
+          _count: { select: { itemsCatalogo: true } },
         },
       });
-      await tx.itemsCatalogoDetalle.create({
-        data: { item: item.identificador, fechaSubasta: new Date(fechaSubasta), horaSubasta, lugarSubasta },
+
+      if (!catalogoBase)
+        throw new Error('Catálogo no encontrado.');
+
+      let item = await tx.itemsCatalogo.findFirst({ where: { producto: id } });
+
+      const crearCatalogoUnitario = async (baseCatalogo) => {
+        const subastaBase = baseCatalogo.subastas;
+        const nuevaSubasta = await tx.subastas.create({
+          data: {
+            fecha:               new Date(fechaSubasta),
+            hora:                horaTextoADate(horaSubasta),
+            estado:              subastaBase?.estado || 'programada',
+            subastador:          subastaBase?.subastador || null,
+            ubicacion:           lugarSubasta,
+            capacidadAsistentes: subastaBase?.capacidadAsistentes || 100,
+            tieneDeposito:       subastaBase?.tieneDeposito || 'si',
+            seguridadPropia:     subastaBase?.seguridadPropia || 'si',
+            categoria:           subastaBase?.categoria || 'comun',
+          },
+        });
+
+        const nuevoCatalogo = await tx.catalogos.create({
+          data: {
+            descripcion: `${baseCatalogo.descripcion} - producto ${id}`,
+            subasta:     nuevaSubasta.identificador,
+            responsable: baseCatalogo.responsable,
+          },
+        });
+
+        return nuevoCatalogo.identificador;
+      };
+
+      // Regla de negocio: una subasta publicada en una card tiene un solo artículo.
+      // Si el catálogo elegido ya tiene otro ítem, se crea una subasta/catálogo propio
+      // para este producto sin modificar las tablas base.
+      if (!item && catalogoBase._count.itemsCatalogo > 0) {
+        catalogoDestinoId = await crearCatalogoUnitario(catalogoBase);
+      }
+
+      if (item) {
+        const catalogoActual = await tx.catalogos.findFirst({
+          where: { identificador: item.catalogo },
+          include: {
+            subastas: true,
+            _count: { select: { itemsCatalogo: true } },
+          },
+        });
+
+        if (catalogoActual?._count?.itemsCatalogo > 1) {
+          catalogoDestinoId = await crearCatalogoUnitario(catalogoActual);
+        }
+      }
+
+      if (item) {
+        item = await tx.itemsCatalogo.update({
+          where: { identificador: item.identificador },
+          data: {
+            catalogo:   catalogoDestinoId,
+            precioBase: parseFloat(precioBase),
+            comision:   parseFloat(comision),
+            subastado:  'no',
+          },
+        });
+      } else {
+        item = await tx.itemsCatalogo.create({
+          data: {
+            catalogo:     catalogoDestinoId,
+            producto:     id,
+            precioBase:   parseFloat(precioBase),
+            comision:     parseFloat(comision),
+            subastado:    'no',
+          },
+        });
+      }
+
+      await tx.itemsCatalogoDetalle.upsert({
+        where: { item: item.identificador },
+        create: { item: item.identificador, fechaSubasta: new Date(fechaSubasta), horaSubasta, lugarSubasta },
+        update: { fechaSubasta: new Date(fechaSubasta), horaSubasta, lugarSubasta, ultimaPuja: null, cerrado: false },
       });
 
       const conversacion = await tx.conversaciones.findFirst({ where: { producto: id } });
@@ -612,10 +725,19 @@ exports.misArticulosEnSubastas = async (req, res) => {
         detalle: true,
         itemsCatalogo: {
           select: {
+            identificador: true,
             precioBase:   true,
             comision:     true,
             subastado:    true,
             detalle:       true,
+            catalogos: {
+              select: {
+                subasta: true,
+                subastas: {
+                  select: { estado: true, categoria: true, fecha: true, hora: true, ubicacion: true },
+                },
+              },
+            },
           },
         },
       },
@@ -627,9 +749,13 @@ exports.misArticulosEnSubastas = async (req, res) => {
 
       return {
         productoId:          p.identificador,
+        itemId:              propuesta?.identificador || null,
+        subastaId:           propuesta?.catalogos?.subasta || null,
+        estadoSubasta:       propuesta?.catalogos?.subastas?.estado || null,
+        categoriaSubasta:    propuesta?.catalogos?.subastas?.categoria || null,
         nombre:              p.detalle?.nombre || 'Producto',
         descripcionCompleta: p.descripcionCompleta,
-        portada:             foto ? Buffer.from(foto).toString('base64') : null,
+        portada:             bufferImagenABase64(foto),
         precioBase:          propuesta?.precioBase   || null,
         comision:            propuesta?.comision     || null,
         moneda:              propuesta?.detalle?.moneda       || 'ARS',

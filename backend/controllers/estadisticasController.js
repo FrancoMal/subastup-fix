@@ -2,6 +2,7 @@
 // Estadísticas de pujas — Prisma + PostgreSQL
 
 const prisma = require('../config/prisma');
+const { bufferImagenABase64 } = require('../utils/imagenes');
 
 // ── Helper: traer todas las pujas del usuario con su resultado ─
 async function getPujasUsuario(personaId) {
@@ -190,7 +191,7 @@ exports.getHistorialPujas = async (req, res) => {
           : p.itemsCatalogo?.detalle?.cerrado
             ? 'superada'
             : 'en_curso',
-        portada: foto ? Buffer.from(foto).toString('base64') : null,
+        portada: bufferImagenABase64(foto),
       };
     });
 

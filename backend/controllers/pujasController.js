@@ -2,6 +2,7 @@
 // Pujas en tiempo real — Prisma + PostgreSQL
 
 const prisma = require('../config/prisma');
+const { fotoARespuesta } = require('../utils/imagenes');
 
 const TIMER_SEGUNDOS = 60;
 
@@ -39,6 +40,7 @@ exports.getEstadoPuja = async (req, res) => {
           select: {
             identificador:        true,
             revisor:              true,
+            duenio:               true,
             descripcionCompleta: true,
             fotos:              { take: 3 },
             detalle:            true,
@@ -193,10 +195,7 @@ exports.getEstadoPuja = async (req, res) => {
       : (parseFloat(pujaActual) + parseFloat(item.precioBase) * MAXIMO_PORCENTAJE_VALOR_BASE);
 
     // Fotos en base64
-    const fotos = item.productos?.fotos?.map((f) => ({
-      id:   f.identificador,
-      foto: Buffer.from(f.foto).toString('base64'),
-    })) || [];
+    const fotos = item.productos?.fotos?.map(fotoARespuesta).filter(Boolean) || [];
 
     return res.json({
       ok:               true,
@@ -204,6 +203,7 @@ exports.getEstadoPuja = async (req, res) => {
       itemId:           item.identificador,
       nombre:           item.productos?.detalle?.nombre || 'Producto',
       descripcion:      item.productos?.descripcionCompleta,
+      duenioId:         item.productos?.duenio || null,
       moneda:           item.detalle?.moneda || 'ARS',
       categoria:        categoriaSubasta || null,
       precioBase:       item.precioBase,
@@ -274,6 +274,18 @@ exports.pujar = async (req, res) => {
         const e = new Error('Esta subasta todavía no está activa.');
         e.status = 400;
         e.codigo = 'SUBASTA_NO_ACTIVA';
+        throw e;
+      }
+
+      const producto = await tx.productos.findFirst({
+        where: { identificador: item.producto },
+        select: { duenio: true },
+      });
+
+      if (producto?.duenio === personaId) {
+        const e = new Error('No podés pujar por este artículo porque vos lo publicaste.');
+        e.status = 403;
+        e.codigo = 'DUENIO_NO_PUEDE_PUJAR';
         throw e;
       }
 

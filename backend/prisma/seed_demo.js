@@ -1,6 +1,7 @@
 // @TASK: Datos idempotentes para una demostración completa de SubastUP.
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+const zlib = require('zlib');
 
 const prisma = new PrismaClient();
 
@@ -20,6 +21,51 @@ const productosDemo = [
 ];
 
 const resumen = { usuarios: 0, metodosPago: 0, subastas: 0, productos: 0, items: 0, pujas: 0 };
+
+function crc32(buffer) {
+  let crc = ~0;
+  for (const byte of buffer) {
+    crc ^= byte;
+    for (let i = 0; i < 8; i += 1) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+  }
+  return ~crc >>> 0;
+}
+
+function chunkPng(type, data) {
+  const typeBuffer = Buffer.from(type);
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length, 0);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(Buffer.concat([typeBuffer, data])), 0);
+  return Buffer.concat([length, typeBuffer, data, crc]);
+}
+
+function pngDemo([r, g, b]) {
+  const width = 600;
+  const height = 420;
+  const raw = Buffer.alloc((width * 3 + 1) * height);
+  for (let y = 0; y < height; y += 1) {
+    const row = y * (width * 3 + 1);
+    raw[row] = 0;
+    for (let x = 0; x < width; x += 1) {
+      const idx = row + 1 + x * 3;
+      raw[idx] = r;
+      raw[idx + 1] = g;
+      raw[idx + 2] = b;
+    }
+  }
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 2;
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunkPng('IHDR', ihdr),
+    chunkPng('IDAT', zlib.deflateSync(raw)),
+    chunkPng('IEND', Buffer.alloc(0)),
+  ]);
+}
 
 // @TASK: Calcula fechas de la próxima semana sin depender de una fecha fija.
 const proximoDia = (offset) => {
@@ -193,6 +239,18 @@ async function asegurarProductoDemo(config, indice, duenios, equipo) {
       },
     });
     resumen.productos += 1;
+  }
+
+  const fotosExistentes = await prisma.fotos.count({ where: { producto: producto.identificador } });
+  if (fotosExistentes === 0) {
+    const colores = [
+      [139, 0, 0],
+      [162, 59, 0],
+      [47, 72, 88],
+    ];
+    await prisma.fotos.createMany({
+      data: colores.map((color) => ({ producto: producto.identificador, foto: pngDemo(color) })),
+    });
   }
 
   let item = await prisma.itemsCatalogo.findFirst({ where: { producto: producto.identificador } });

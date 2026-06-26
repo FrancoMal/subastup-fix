@@ -2,8 +2,9 @@
 // Subastas — Prisma + PostgreSQL
 
 const prisma = require('../config/prisma');
+const { bufferImagenABase64 } = require('../utils/imagenes');
 
-const ESTADOS_SUBASTA_VISIBLES = ['abierta', 'programada', 'pendiente'];
+const ESTADOS_SUBASTA_VISIBLES = ['abierta', 'activa', 'activo', 'programada', 'proximamente', 'pendiente'];
 
 // ── Helper: armar resultado de subasta ────────────────────────
 function formatearSubasta(s) {
@@ -11,15 +12,18 @@ function formatearSubasta(s) {
   const foto    = item?.productos?.fotos?.[0]?.foto;
   return {
     subastaId:      s.identificador,
+    itemId:         item?.identificador || null,
+    productoId:     item?.producto || item?.productos?.identificador || null,
     fecha:          s.fecha,
     hora:           s.hora,
     ubicacion:      s.ubicacion,
     categoria:      s.categoria,
     estado:         s.estado,
     nombreArticulo: item?.productos?.detalle?.nombre || null,
+    descripcionArticulo: item?.productos?.descripcionCompleta || item?.productos?.descripcionCatalogo || null,
     moneda:         item?.detalle?.moneda || 'ARS',
     precioBase:     item?.precioBase || null,
-    portada:        foto ? Buffer.from(foto).toString('base64') : null,
+    portada:        bufferImagenABase64(foto),
   };
 }
 
@@ -212,7 +216,9 @@ exports.buscarSubastas = async (req, res) => {
             nombreArticulo: item.productos?.detalle?.nombre || null,
             moneda:         item.detalle?.moneda || 'ARS',
             productoId:     item.productos?.identificador,
-            portada:        foto ? Buffer.from(foto).toString('base64') : null,
+            itemId:         item.identificador,
+            precioBase:     item.precioBase || null,
+            portada:        bufferImagenABase64(foto),
           };
         })
       )
@@ -308,6 +314,65 @@ exports.linkStream = async (req, res) => {
   } catch (err) {
     console.error('linkStream error:', err);
     return res.status(500).json({ ok: false, message: 'Error al obtener el link de stream.' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/auctions/search/suggestions?q=texto
+// Alias compatible con la primera entrega para sugerencias de búsqueda.
+// ─────────────────────────────────────────────────────────────
+exports.sugerenciasBusqueda = async (req, res) => {
+  try {
+    const q = String(req.query.q || req.query.search || '').trim();
+    if (q.length < 2) return res.json({ ok: true, suggestions: [] });
+
+    const productos = await prisma.productosDetalle.findMany({
+      where: { nombre: { contains: q, mode: 'insensitive' } },
+      take: 10,
+      orderBy: { nombre: 'asc' },
+      select: { nombre: true, producto: true },
+    });
+
+    return res.json({
+      ok: true,
+      suggestions: productos.map((p) => ({
+        productoId: p.producto,
+        nombre: p.nombre,
+      })),
+    });
+  } catch (err) {
+    console.error('sugerenciasBusqueda error:', err);
+    return res.status(500).json({ ok: false, message: 'Error al obtener sugerencias.' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/auctions/upload-images
+// Alias compatible: valida imágenes base64 sin crear tablas nuevas.
+// La persistencia real de fotos ocurre al cargar producto/subasta.
+// ─────────────────────────────────────────────────────────────
+exports.uploadImagesCompat = async (req, res) => {
+  try {
+    const fotos = Array.isArray(req.body?.fotos)
+      ? req.body.fotos
+      : Array.isArray(req.body?.fotosBase64)
+        ? req.body.fotosBase64
+        : [];
+
+    if (!fotos.length)
+      return res.status(400).json({ ok: false, message: 'Debe enviar al menos una imagen.' });
+
+    if (fotos.length > 12)
+      return res.status(400).json({ ok: false, message: 'Máximo 12 imágenes.' });
+
+    return res.json({
+      ok: true,
+      message: 'Imágenes recibidas. La persistencia se realiza al crear el producto.',
+      cantidad: fotos.length,
+    });
+  } catch (err) {
+    console.error('uploadImagesCompat error:', err);
+    return res.status(500).json({ ok: false, message: 'Error al procesar imágenes.' });
   }
 };
 
