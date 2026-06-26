@@ -177,7 +177,7 @@ model Devoluciones {
   fecha              DateTime  @default(now())
   productos          Productos @relation(fields: [producto], references: [identificador])
 
-  @@map("devoluciones")
+  @@map("app_devoluciones")
 }
 
 model Catalogos {
@@ -239,7 +239,7 @@ model PerfilesContacto {
   telefono  String?  @db.VarChar(20)
   personas  Personas @relation(fields: [persona], references: [identificador])
 
-  @@map("perfiles_contacto")
+  @@map("app_perfiles_contacto")
 }
 
 model ProductosDetalle {
@@ -251,7 +251,7 @@ model ProductosDetalle {
   direccionEnvio String?   @map("direccion_envio") @db.VarChar(350)
   productos      Productos @relation(fields: [producto], references: [identificador])
 
-  @@map("productos_detalle")
+  @@map("app_productos_detalle")
 }
 
 model ItemsCatalogoDetalle {
@@ -266,7 +266,7 @@ model ItemsCatalogoDetalle {
   linkStream         String?        @map("link_stream") @db.VarChar(350)
   itemsCatalogo      ItemsCatalogo  @relation(fields: [item], references: [identificador])
 
-  @@map("items_catalogo_detalle")
+  @@map("app_items_catalogo_detalle")
 }
 
 model PujosDetalle {
@@ -274,7 +274,7 @@ model PujosDetalle {
   fecha   DateTime @default(now())
   pujos   Pujos    @relation(fields: [puja], references: [identificador])
 
-  @@map("pujos_detalle")
+  @@map("app_pujos_detalle")
 }
 
 model RegistroDeSubasta {
@@ -314,7 +314,7 @@ model Registros {
   fotosDNI      FotosDNI[]
 
   @@index([email])
-  @@map("registros")
+  @@map("app_registros")
 }
 
 model Logins {
@@ -328,7 +328,7 @@ model Logins {
   registros        Registros @relation(fields: [registro], references: [identificador])
 
   @@index([registro])
-  @@map("logins")
+  @@map("app_logins")
 }
 
 model FotosDNI {
@@ -338,7 +338,7 @@ model FotosDNI {
   foto          Bytes
   registros     Registros @relation(fields: [registro], references: [identificador])
 
-  @@map("fotosdni")
+  @@map("app_fotosdni")
 }
 
 // ── Métodos de pago ────────────────────────────────────────────
@@ -356,7 +356,7 @@ model MetodosPago {
   cuentasBancarias CuentasBancarias?
   cheques        Cheques?
 
-  @@map("metodospago")
+  @@map("app_metodospago")
 }
 
 model Tarjetas {
@@ -372,7 +372,7 @@ model Tarjetas {
   localidad       String?     @db.VarChar(100)
   metodosPago     MetodosPago @relation(fields: [identificador], references: [identificador])
 
-  @@map("tarjetas")
+  @@map("app_tarjetas")
 }
 
 model CuentasBancarias {
@@ -382,7 +382,7 @@ model CuentasBancarias {
   titular       String      @db.VarChar(150)
   metodosPago   MetodosPago @relation(fields: [identificador], references: [identificador])
 
-  @@map("cuentasbancarias")
+  @@map("app_cuentasbancarias")
 }
 
 model Cheques {
@@ -394,7 +394,7 @@ model Cheques {
   imagen         Bytes?
   metodosPago    MetodosPago @relation(fields: [identificador], references: [identificador])
 
-  @@map("cheques")
+  @@map("app_cheques")
 }
 
 // ── Notificaciones ─────────────────────────────────────────────
@@ -410,7 +410,7 @@ model Notificaciones {
   fecha         DateTime @default(now())
   personas      Personas @relation(fields: [persona], references: [identificador])
 
-  @@map("notificaciones")
+  @@map("app_notificaciones")
 }
 
 model PushTokens {
@@ -421,7 +421,7 @@ model PushTokens {
   fechaCreacion DateTime @default(now())
   personas      Personas @relation(fields: [persona], references: [identificador])
 
-  @@map("pushtokens")
+  @@map("app_pushtokens")
 }
 
 model SuscripcionesSubasta {
@@ -433,7 +433,7 @@ model SuscripcionesSubasta {
   subastas      Subastas @relation(fields: [subasta], references: [identificador])
 
   @@unique([persona, subasta])
-  @@map("suscripcionessubasta")
+  @@map("app_suscripcionessubasta")
 }
 
 // ── Chat / Mensajería ───────────────────────────────────────────
@@ -449,7 +449,7 @@ model Conversaciones {
   productos     Productos  @relation(fields: [producto], references: [identificador])
   mensajes      Mensajes[]
 
-  @@map("conversaciones")
+  @@map("app_conversaciones")
 }
 
 model Mensajes {
@@ -462,5 +462,5 @@ model Mensajes {
   fecha          DateTime       @default(now())
   conversaciones Conversaciones @relation(fields: [conversacion], references: [identificador])
 
-  @@map("mensajes")
+  @@map("app_mensajes")
 }

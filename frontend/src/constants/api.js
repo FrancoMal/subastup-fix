@@ -1,7 +1,13 @@
 // ── URL base del backend ──────────────────────────────────────────────────────
-// Android emulador:   'http://10.0.2.2:3000'
-// Dispositivo físico: IP de la PC en la red WiFi local (ej: 'http://192.168.1.X:3000')
-export const BASE_URL = 'https://tpo-dai-subastup.onrender.com';
+// Por defecto apunta al backend LOCAL de esta PC. Se puede sobreescribir al
+// levantar Expo con la variable EXPO_PUBLIC_API_URL. Opciones:
+//   Web (en esta PC):       http://localhost:3001
+//   Celular (misma WiFi):   http://192.168.0.137:3001   (IP de esta PC)
+//   Android emulador:       http://10.0.2.2:3001
+//   Celular en otra red:    exponé el backend con ngrok y usá esa URL https
+// El default 192.168.0.137:3001 sirve tanto para la web en esta PC como para un
+// celular en la misma WiFi.
+export const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.0.137:3001';
 
 export const ENDPOINTS = {
   // ── Auth ────────────────────────────────────────────────

@@ -1,27 +1,30 @@
-// @TASK: Datos idempotentes para una demostración completa de SubastUP.
+// prisma/seed_demo.js
+// Seed demo de SubastUP. Exporta seedDemo()/resetAndSeed() para reutilizar desde
+// el endpoint POST /api/dev/reseed y desde la CLI (node prisma/seed_demo.js).
+//
+// Roster (cuentas de prueba, estilo Auxion):
+//   admin@subastup.com      / Admin1234    -> rol admin (aprueba cuentas, verifica pagos/productos)
+//   revisor@subastup.com    / Revisor1234  -> rol revisor (idem back-office)
+//   vendedor@subastup.com   / Demo1234     -> dueño de TODOS los productos en subasta
+//   demo1@subastup.com      / Demo1234     -> comun     (flujo completo, pago verificado)
+//   demo2@subastup.com      / Demo1234     -> especial  (flujo completo)
+//   demo3@subastup.com      / Demo1234     -> oro       (flujo completo)
+//   demo4@subastup.com      / Demo1234     -> plata     (flujo completo)
+//   demo5@subastup.com      / Demo1234     -> platino   (flujo completo)
+//   demo6@subastup.com      / Demo1234     -> platino   (segundo postor para subastas altas)
+//   sinpago@subastup.com    / Demo1234     -> especial, pago SIN verificar (mira pero no puja)
+//   pendiente@subastup.com  / Demo1234     -> registro 'pendiente' (no puede entrar hasta aprobación)
+//   rechazado@subastup.com  / Demo1234     -> registro 'rechazado'
+//   bloqueado@subastup.com  / Demo1234     -> aprobado pero login bloqueado por intentos
+//
+// Como el vendedor es dueño de todos los productos, cualquier demoN puede pujar
+// en cualquier subasta (según su categoría); ningún postor es dueño del artículo.
+
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const zlib = require('zlib');
 
-const prisma = new PrismaClient();
-
-const usuariosDemo = [
-  { email: 'demo1@subastup.com', password: 'Demo1234', documento: '41000001', nombre: 'Lucía Demo', telefono: '1111111111', direccion: 'Av. Demo 101', categoria: 'comun' },
-  { email: 'demo2@subastup.com', password: 'Demo1234', documento: '41000002', nombre: 'Mateo Demo', telefono: '1111111112', direccion: 'Av. Demo 102', categoria: 'especial' },
-  { email: 'demo3@subastup.com', password: 'Demo1234', documento: '41000003', nombre: 'Sofía Demo', telefono: '1111111113', direccion: 'Av. Demo 103', categoria: 'oro' },
-  { email: 'demo4@subastup.com', password: 'Demo1234', documento: '41000004', nombre: 'Tomás Demo', telefono: '1111111114', direccion: 'Av. Demo 104', categoria: 'plata' },
-];
-
-const productosDemo = [
-  { nombre: 'Reloj Omega vintage demo', categoria: 'comun', precioBase: 120000, duenio: 0, ubicacion: 'Demo SubastUP - Sala Común', descripcion: 'Reloj vintage en excelente estado, con estuche.', moneda: 'ARS' },
-  { nombre: 'Guitarra Gibson demo', categoria: 'especial', precioBase: 850000, duenio: 1, ubicacion: 'Demo SubastUP - Sala Especial', descripcion: 'Guitarra eléctrica de colección.', moneda: 'ARS' },
-  { nombre: 'Moneda de oro demo', categoria: 'oro', precioBase: 1500, duenio: 2, ubicacion: 'Demo SubastUP - Sala Oro', descripcion: 'Moneda de oro para subasta especializada.', moneda: 'USD' },
-  { nombre: 'Cámara Leica demo', categoria: 'plata', precioBase: 420000, duenio: 3, ubicacion: 'Demo SubastUP - Sala Plata', descripcion: 'Cámara analógica lista para colección.', moneda: 'ARS' },
-  { nombre: 'Radio antigua programada demo', categoria: 'comun', precioBase: 90000, duenio: 0, ubicacion: 'Demo SubastUP - Sala Programada', descripcion: 'Radio antigua cargada para probar subasta próximamente.', moneda: 'ARS', estado: 'programada' },
-];
-
-const resumen = { usuarios: 0, metodosPago: 0, subastas: 0, productos: 0, items: 0, pujas: 0 };
-
+// ── Helpers para generar una imagen PNG sólida (foto demo) ──────
 function crc32(buffer) {
   let crc = ~0;
   for (const byte of buffer) {
@@ -30,7 +33,6 @@ function crc32(buffer) {
   }
   return ~crc >>> 0;
 }
-
 function chunkPng(type, data) {
   const typeBuffer = Buffer.from(type);
   const length = Buffer.alloc(4);
@@ -39,26 +41,19 @@ function chunkPng(type, data) {
   crc.writeUInt32BE(crc32(Buffer.concat([typeBuffer, data])), 0);
   return Buffer.concat([length, typeBuffer, data, crc]);
 }
-
 function pngDemo([r, g, b]) {
-  const width = 600;
-  const height = 420;
+  const width = 600, height = 420;
   const raw = Buffer.alloc((width * 3 + 1) * height);
   for (let y = 0; y < height; y += 1) {
     const row = y * (width * 3 + 1);
     raw[row] = 0;
     for (let x = 0; x < width; x += 1) {
       const idx = row + 1 + x * 3;
-      raw[idx] = r;
-      raw[idx + 1] = g;
-      raw[idx + 2] = b;
+      raw[idx] = r; raw[idx + 1] = g; raw[idx + 2] = b;
     }
   }
   const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(width, 0);
-  ihdr.writeUInt32BE(height, 4);
-  ihdr[8] = 8;
-  ihdr[9] = 2;
+  ihdr.writeUInt32BE(width, 0); ihdr.writeUInt32BE(height, 4); ihdr[8] = 8; ihdr[9] = 2;
   return Buffer.concat([
     Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
     chunkPng('IHDR', ihdr),
@@ -66,8 +61,7 @@ function pngDemo([r, g, b]) {
     chunkPng('IEND', Buffer.alloc(0)),
   ]);
 }
-
-// @TASK: Calcula fechas de la próxima semana sin depender de una fecha fija.
+// Fecha futura (lunes + offset) para las subastas.
 const proximoDia = (offset) => {
   const fecha = new Date();
   fecha.setHours(0, 0, 0, 0);
@@ -76,300 +70,253 @@ const proximoDia = (offset) => {
   return fecha;
 };
 
-// @TASK: Crea el empleado técnico que verifica usuarios y administra catálogos.
-async function asegurarEquipoDemo() {
-  let persona = await prisma.personas.findFirst({ where: { documento: '90000000' } });
-  if (!persona) {
-    persona = await prisma.personas.create({
-      data: { documento: '90000000', nombre: 'Equipo Demo SubastUP', direccion: 'Sede Demo', estado: 'activo' },
-    });
-  }
+// ── Datos del seed ─────────────────────────────────────────────
+const PASS_DEMO = 'Demo1234';
 
-  let empleado = await prisma.empleados.findUnique({ where: { identificador: persona.identificador } });
-  if (!empleado) {
-    empleado = await prisma.empleados.create({
-      data: { identificador: persona.identificador, cargo: 'Revisor técnico del sistema' },
-    });
-  }
+const STAFF = [
+  { email: 'admin@subastup.com',   pass: 'Admin1234',   rol: 'admin',   nombre: 'Admin SubastUP',   doc: '80000000' },
+  { email: 'revisor@subastup.com', pass: 'Revisor1234', rol: 'revisor', nombre: 'Revisor SubastUP', doc: '80000001' },
+];
 
-  let subastador = await prisma.subastadores.findUnique({ where: { identificador: persona.identificador } });
-  if (!subastador) {
-    subastador = await prisma.subastadores.create({
-      data: { identificador: persona.identificador, matricula: 'DEMO-001', region: 'Demo' },
-    });
-  }
+// caso: vendedor | completo | sinpago | pendiente | rechazado | bloqueado
+const CUENTAS = [
+  { email: 'vendedor@subastup.com',  nombre: 'Vera Vendedora',  doc: '42000000', categoria: 'platino',  caso: 'vendedor' },
+  { email: 'demo1@subastup.com',     nombre: 'Lucía Común',     doc: '42000001', categoria: 'comun',    caso: 'completo' },
+  { email: 'demo2@subastup.com',     nombre: 'Mateo Especial',  doc: '42000002', categoria: 'especial', caso: 'completo' },
+  { email: 'demo3@subastup.com',     nombre: 'Sofía Oro',       doc: '42000003', categoria: 'oro',      caso: 'completo' },
+  { email: 'demo4@subastup.com',     nombre: 'Tomás Plata',     doc: '42000004', categoria: 'plata',    caso: 'completo' },
+  { email: 'demo5@subastup.com',     nombre: 'Pía Platino',     doc: '42000005', categoria: 'platino',  caso: 'completo' },
+  { email: 'demo6@subastup.com',     nombre: 'Igor Platino',    doc: '42000006', categoria: 'platino',  caso: 'completo' },
+  { email: 'sinpago@subastup.com',   nombre: 'Sara SinPago',    doc: '42000007', categoria: 'especial', caso: 'sinpago' },
+  { email: 'pendiente@subastup.com', nombre: 'Pedro Pendiente', doc: '42000008', categoria: 'comun',    caso: 'pendiente' },
+  { email: 'rechazado@subastup.com', nombre: 'Rita Rechazada',  doc: '42000009', categoria: 'comun',    caso: 'rechazado' },
+  { email: 'bloqueado@subastup.com', nombre: 'Bruno Bloqueado', doc: '42000010', categoria: 'oro',      caso: 'bloqueado' },
+];
 
-  return { empleadoId: empleado.identificador, subastadorId: subastador.identificador };
-}
+const SUBASTAS = [
+  // ── Abiertas: 2 por categoría ──────────────────────────────
+  { nombre: 'Reloj Omega vintage',          categoria: 'comun',    precioBase: 120000, moneda: 'ARS', sala: 'Sala Común',     desc: 'Reloj vintage en excelente estado, con estuche original.' },
+  { nombre: 'Bicicleta de ruta de carbono', categoria: 'comun',    precioBase: 65000,  moneda: 'ARS', sala: 'Sala Común 2',   desc: 'Bicicleta de ruta usada, cuadro de carbono, lista para rodar.' },
+  { nombre: 'Guitarra Gibson de colección', categoria: 'especial', precioBase: 850000, moneda: 'ARS', sala: 'Sala Especial',  desc: 'Guitarra eléctrica de colección, totalmente original.' },
+  { nombre: 'Colección de vinilos de jazz', categoria: 'especial', precioBase: 180000, moneda: 'ARS', sala: 'Sala Especial 2',desc: 'Lote de vinilos originales de jazz de los años 60.' },
+  { nombre: 'Cámara Leica analógica',       categoria: 'plata',    precioBase: 420000, moneda: 'ARS', sala: 'Sala Plata',     desc: 'Cámara analógica lista para coleccionista.' },
+  { nombre: 'Reloj de bolsillo suizo',      categoria: 'plata',    precioBase: 300000, moneda: 'ARS', sala: 'Sala Plata 2',   desc: 'Reloj de bolsillo suizo a cuerda, funcionando.' },
+  { nombre: 'Moneda de oro coleccionable',  categoria: 'oro',      precioBase: 1500,   moneda: 'USD', sala: 'Sala Oro',       desc: 'Moneda de oro para subasta especializada.' },
+  { nombre: 'Lingote conmemorativo de oro', categoria: 'oro',      precioBase: 2500,   moneda: 'USD', sala: 'Sala Oro 2',     desc: 'Lingote conmemorativo certificado.' },
+  { nombre: 'Cuadro firmado original',      categoria: 'platino',  precioBase: 9000,   moneda: 'USD', sala: 'Sala Platino',   desc: 'Obra original firmada, con certificado de autenticidad.' },
+  { nombre: 'Escultura de bronce',          categoria: 'platino',  precioBase: 12000,  moneda: 'USD', sala: 'Sala Platino 2', desc: 'Escultura de bronce de autor, pieza única.' },
+  // ── Programadas (futuras) ──────────────────────────────────
+  { nombre: 'Vajilla de porcelana inglesa', categoria: 'comun',    precioBase: 90000,  moneda: 'ARS', sala: 'Sala Programada',  desc: 'Juego de porcelana, subasta próximamente.', estado: 'programada' },
+  { nombre: 'Joya art déco con esmeraldas', categoria: 'especial', precioBase: 500000, moneda: 'ARS', sala: 'Sala Programada 2',desc: 'Joya art déco, próximamente en subasta.', estado: 'programada' },
+  // ── Finalizadas (con ganador ya definido) ──────────────────
+  { nombre: 'Auto a escala de colección',   categoria: 'comun',    precioBase: 80000,  moneda: 'ARS', sala: 'Sala Finalizada',   desc: 'Auto a escala 1:18, edición limitada.', finalizada: { ganador: 'demo1@subastup.com', perdedor: 'demo2@subastup.com', montoPerdedor: 82000, montoGanador: 90000 } },
+  { nombre: 'Primera edición de libro raro',categoria: 'oro',      precioBase: 3000,   moneda: 'USD', sala: 'Sala Finalizada 2', desc: 'Primera edición firmada, muy buscada.', finalizada: { ganador: 'demo3@subastup.com', perdedor: 'demo5@subastup.com', montoPerdedor: 3200, montoGanador: 3500 } },
+];
 
-// @TASK: Crea o recupera un usuario demo y sus roles de cliente y dueño.
-async function asegurarUsuario(demo, verificadorId, indice) {
-  let registro = await prisma.registros.findFirst({ where: { email: demo.email } });
+const COLORES = [[139, 0, 0], [162, 59, 0], [47, 72, 88]];
 
-  if (!registro) {
+// ── Inserción (asume la base recién truncada / vacía) ──────────
+async function seedDemo(prisma) {
+  const resumen = { staff: 0, cuentas: 0, subastas: 0, finalizadas: 0 };
+
+  // Equipo: empleado verificador + subastador (mismas personas).
+  const personaEquipo = await prisma.personas.create({
+    data: { documento: '90000000', nombre: 'Equipo SubastUP', direccion: 'Sede', estado: 'activo' },
+  });
+  const empleado = await prisma.empleados.create({
+    data: { identificador: personaEquipo.identificador, cargo: 'Revisor técnico del sistema' },
+  });
+  const subastador = await prisma.subastadores.create({
+    data: { identificador: personaEquipo.identificador, matricula: 'DEMO-001', region: 'Demo' },
+  });
+  const verificador = empleado.identificador;
+
+  // Staff (admin / revisor).
+  for (const s of STAFF) {
     const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(demo.password, salt);
     const persona = await prisma.personas.create({
-      data: {
-        documento: demo.documento,
-        nombre: demo.nombre,
-        direccion: demo.direccion,
-        estado: 'activo',
-      },
+      data: { documento: s.doc, nombre: s.nombre, direccion: 'Sede', estado: 'activo' },
     });
+    const registro = await prisma.registros.create({
+      data: { persona: persona.identificador, email: s.email, telefono: '1100000000', estado: 'aprobado', rol: s.rol, categoria: 'platino' },
+    });
+    await prisma.logins.create({
+      data: { registro: registro.identificador, passwordHash: await bcrypt.hash(s.pass, salt), salt, intentosFallidos: 0, bloqueado: false },
+    });
+    resumen.staff += 1;
+  }
 
-    registro = await prisma.registros.create({
+  // Cuentas de prueba.
+  const personaPorEmail = {};
+  for (const c of CUENTAS) {
+    const salt = await bcrypt.genSalt(10);
+    const persona = await prisma.personas.create({
+      data: { documento: c.doc, nombre: c.nombre, direccion: 'Av. Demo 100', estado: 'activo' },
+    });
+    personaPorEmail[c.email] = persona.identificador;
+
+    const estadoRegistro =
+      c.caso === 'pendiente' ? 'pendiente' : c.caso === 'rechazado' ? 'rechazado' : 'aprobado';
+
+    const registro = await prisma.registros.create({
       data: {
         persona: persona.identificador,
-        email: demo.email,
-        telefono: demo.telefono,
-        estado: 'aprobado',
+        email: c.email,
+        telefono: '1111111111',
+        estado: estadoRegistro,
         rol: 'usuario',
-        categoria: demo.categoria,
+        categoria: c.categoria,
+        motivoRechazo: c.caso === 'rechazado' ? 'Documentación insuficiente (caso de prueba).' : null,
       },
     });
-
-    await prisma.perfilesContacto.create({ data: { persona: persona.identificador, telefono: demo.telefono } });
-
+    await prisma.perfilesContacto.create({ data: { persona: persona.identificador, telefono: '1111111111' } });
     await prisma.logins.create({
-      data: { registro: registro.identificador, passwordHash, salt, intentosFallidos: 0, bloqueado: false },
-    });
-    resumen.usuarios += 1;
-  }
-
-  const personaId = registro.persona;
-  const cliente = await prisma.clientes.findUnique({ where: { identificador: personaId } });
-  if (!cliente) {
-    await prisma.clientes.create({
-      data: { identificador: personaId, admitido: 'si', categoria: demo.categoria, verificador: verificadorId },
-    });
-  }
-
-  const duenio = await prisma.duenios.findUnique({ where: { identificador: personaId } });
-  if (!duenio) {
-    await prisma.duenios.create({
-      data: { identificador: personaId, verificacionFinanciera: 'si', verificacionJudicial: 'si', calificacionRiesgo: 1, verificador: verificadorId },
-    });
-  }
-
-  const tarjetaExistente = await prisma.metodosPago.findFirst({
-    where: { persona: personaId, tipo: 'tarjeta', activo: true },
-  });
-  if (!tarjetaExistente) {
-    const metodo = await prisma.metodosPago.create({
-      data: { persona: personaId, tipo: 'tarjeta', activo: true, verificado: true },
-    });
-    await prisma.tarjetas.create({
       data: {
-        identificador: metodo.identificador,
-        titular: demo.nombre,
-        numeroTarjeta: `41111111111111${String(indice + 1).padStart(2, '0')}`,
-        mesVencimiento: '12',
-        anioVencimiento: '2030',
-        codigoSeguridad: '123',
-        direccion: demo.direccion,
-        codigoPostal: '1000',
-        pais: 'Argentina',
-        localidad: 'Buenos Aires',
+        registro: registro.identificador,
+        passwordHash: await bcrypt.hash(PASS_DEMO, salt),
+        salt,
+        intentosFallidos: c.caso === 'bloqueado' ? 5 : 0,
+        bloqueado: c.caso === 'bloqueado',
       },
     });
-    resumen.metodosPago += 1;
+
+    // Solo las cuentas aprobadas reciben identidades de dominio (cliente + dueño)
+    // y método de pago. pendiente/rechazado quedan sin esas filas.
+    if (estadoRegistro === 'aprobado') {
+      await prisma.clientes.create({
+        data: { identificador: persona.identificador, admitido: 'si', categoria: c.categoria, verificador },
+      });
+      await prisma.duenios.create({
+        data: { identificador: persona.identificador, verificacionFinanciera: 'si', verificacionJudicial: 'si', calificacionRiesgo: 1, verificador },
+      });
+
+      const verificado = c.caso !== 'sinpago'; // sinpago: tarjeta sin verificar
+      const mp = await prisma.metodosPago.create({
+        data: { persona: persona.identificador, tipo: 'tarjeta', activo: true, verificado },
+      });
+      await prisma.tarjetas.create({
+        data: {
+          identificador: mp.identificador,
+          titular: c.nombre,
+          numeroTarjeta: `411111111111${c.doc.slice(-4)}`,
+          mesVencimiento: '12',
+          anioVencimiento: '2030',
+          codigoSeguridad: '123',
+          direccion: 'Av. Demo 100',
+          codigoPostal: '1000',
+          pais: 'Argentina',
+          localidad: 'Buenos Aires',
+        },
+      });
+    }
+    resumen.cuentas += 1;
   }
 
-  return personaId;
-}
+  const vendedorId = personaPorEmail['vendedor@subastup.com'];
 
-// @TASK: Crea o recupera una subasta, su catálogo, producto e ítem disponible.
-async function asegurarProductoDemo(config, indice, duenios, equipo) {
-  const fechaSubasta = proximoDia(indice);
-  const estadoSubasta = config.estado || 'abierta';
-  let subasta = await prisma.subastas.findFirst({ where: { ubicacion: config.ubicacion } });
-  if (!subasta) {
-    subasta = await prisma.subastas.create({
+  // Subastas: 2 abiertas por categoría + 2 programadas + 2 finalizadas.
+  // Dueño de todos los productos = vendedor (así cualquier postor puede pujar).
+  for (const [i, sub] of SUBASTAS.entries()) {
+    const estadoSubasta = sub.estado || 'abierta';
+    const ubicacion = `Demo SubastUP - ${sub.sala}`;
+    // Las finalizadas quedan con fecha pasada; el resto, próximas.
+    const fechaSubasta = sub.finalizada ? new Date(Date.now() - 5 * 24 * 60 * 60 * 1000) : proximoDia(i);
+
+    const subasta = await prisma.subastas.create({
       data: {
         fecha: fechaSubasta,
         hora: new Date('1970-01-01T15:00:00.000Z'),
         estado: estadoSubasta,
-        subastador: equipo.subastadorId,
-        ubicacion: config.ubicacion,
+        subastador: subastador.identificador,
+        ubicacion,
         capacidadAsistentes: 100,
         tieneDeposito: 'si',
         seguridadPropia: 'si',
-        categoria: config.categoria,
+        categoria: sub.categoria,
       },
     });
-    resumen.subastas += 1;
-  } else if (subasta.estado !== estadoSubasta) {
-    await prisma.subastas.update({
-      where: { identificador: subasta.identificador },
-      data: { estado: estadoSubasta },
+    const catalogo = await prisma.catalogos.create({
+      data: { descripcion: `Catálogo ${sub.categoria}`, subasta: subasta.identificador, responsable: verificador },
     });
-  }
-
-  const descripcionCatalogo = `Catálogo demo ${config.categoria}`;
-  let catalogo = await prisma.catalogos.findFirst({ where: { descripcion: descripcionCatalogo, subasta: subasta.identificador } });
-  if (!catalogo) {
-    catalogo = await prisma.catalogos.create({
-      data: { descripcion: descripcionCatalogo, subasta: subasta.identificador, responsable: equipo.empleadoId },
-    });
-  }
-
-  let detalleExistente = await prisma.productosDetalle.findFirst({ where: { nombre: config.nombre } });
-  let producto = detalleExistente
-    ? await prisma.productos.findFirst({ where: { identificador: detalleExistente.producto } })
-    : null;
-  if (!producto) {
-    producto = await prisma.productos.create({
+    const producto = await prisma.productos.create({
       data: {
         fecha: new Date(),
-        disponible: 'si',
-        descripcionCatalogo: config.descripcion,
-        descripcionCompleta: config.descripcion,
-        revisor: equipo.empleadoId,
-        duenio: duenios[config.duenio],
+        disponible: sub.finalizada ? 'no' : 'si',
+        descripcionCatalogo: sub.desc,
+        descripcionCompleta: sub.desc,
+        revisor: verificador,
+        duenio: vendedorId,
       },
     });
     await prisma.productosDetalle.create({
-      data: {
-        producto: producto.identificador,
-        nombre: config.nombre,
-        estado: 'aprobado',
-        revisor: equipo.empleadoId,
-        direccionEnvio: 'Depósito Demo SubastUP',
-      },
+      data: { producto: producto.identificador, nombre: sub.nombre, estado: 'aprobado', revisor: verificador, direccionEnvio: 'Depósito Demo SubastUP' },
     });
-    resumen.productos += 1;
-  }
-
-  const fotosExistentes = await prisma.fotos.count({ where: { producto: producto.identificador } });
-  if (fotosExistentes === 0) {
-    const colores = [
-      [139, 0, 0],
-      [162, 59, 0],
-      [47, 72, 88],
-    ];
     await prisma.fotos.createMany({
-      data: colores.map((color) => ({ producto: producto.identificador, foto: pngDemo(color) })),
+      data: COLORES.map((color) => ({ producto: producto.identificador, foto: pngDemo(color) })),
     });
-  }
-
-  let item = await prisma.itemsCatalogo.findFirst({ where: { producto: producto.identificador } });
-  if (!item) {
-    item = await prisma.itemsCatalogo.create({
+    const item = await prisma.itemsCatalogo.create({
+      data: { catalogo: catalogo.identificador, producto: producto.identificador, precioBase: sub.precioBase, comision: Math.round(sub.precioBase * 0.1), subastado: sub.finalizada ? 'si' : 'no' },
+    });
+    await prisma.itemsCatalogoDetalle.create({
       data: {
-        catalogo: catalogo.identificador,
-        producto: producto.identificador,
-        precioBase: config.precioBase,
-        comision: Math.round(config.precioBase * 0.1),
-        subastado: 'no',
+        item: item.identificador,
+        moneda: sub.moneda,
+        fechaSubasta,
+        horaSubasta: '15:00',
+        lugarSubasta: ubicacion,
+        aceptadoPorDuenio: true,
+        cerrado: Boolean(sub.finalizada),
+        ultimaPuja: sub.finalizada ? new Date(Date.now() - 60 * 60 * 1000) : null,
       },
     });
-    await prisma.itemsCatalogoDetalle.create({ data: { item: item.identificador, moneda: config.moneda, fechaSubasta, horaSubasta: '15:00', lugarSubasta: config.ubicacion, aceptadoPorDuenio: true, cerrado: false } });
-    resumen.items += 1;
-  } else {
-    await prisma.itemsCatalogo.update({
-      where: { identificador: item.identificador },
-      data:  { subastado: 'no' },
-    });
-    await prisma.itemsCatalogoDetalle.upsert({
-      where:  { item: item.identificador },
-      create: { item: item.identificador, moneda: config.moneda, fechaSubasta, horaSubasta: '15:00', lugarSubasta: config.ubicacion, aceptadoPorDuenio: true, cerrado: false },
-      update: { moneda: config.moneda, fechaSubasta, horaSubasta: '15:00', lugarSubasta: config.ubicacion, aceptadoPorDuenio: true, cerrado: false, ultimaPuja: null },
-    });
-  }
 
-  return { subastaId: subasta.identificador, itemId: item.identificador };
-}
-
-// @TASK: Crea asistentes y pujas de ejemplo para dos artículos de la demo.
-async function asegurarPuja(asistente, itemId, importe, ganador) {
-  let puja = await prisma.pujos.findFirst({ where: { asistente, item: itemId, importe } });
-  if (!puja) {
-    puja = await prisma.pujos.create({ data: { asistente, item: itemId, importe, ganador } });
-    resumen.pujas += 1;
-  }
-  await prisma.pujosDetalle.upsert({
-    where:  { puja: puja.identificador },
-    create: { puja: puja.identificador },
-    update: {},
-  });
-}
-
-// @TASK: Asegura que un usuario pueda participar en una subasta demo.
-async function asegurarAsistente(cliente, subasta, numeroPostor) {
-  let asistente = await prisma.asistentes.findFirst({ where: { cliente, subasta } });
-  if (!asistente) {
-    asistente = await prisma.asistentes.create({ data: { numeroPostor, cliente, subasta } });
-  }
-  return asistente;
-}
-
-// @TASK: Ejecuta la preparación idempotente de usuarios, subastas, ítems y pujas.
-async function main() {
-  const equipo = await asegurarEquipoDemo();
-  const personasDemo = [];
-
-  for (const [indice, demo] of usuariosDemo.entries()) {
-    personasDemo.push(await asegurarUsuario(demo, equipo.empleadoId, indice));
-  }
-
-  const subastas = [];
-  for (const [indice, producto] of productosDemo.entries()) {
-    subastas.push(await asegurarProductoDemo(producto, indice, personasDemo, equipo));
-  }
-
-  const asistentes = [];
-  for (const [indice, personaId] of personasDemo.entries()) {
-    const subastaId = subastas[indice % subastas.length].subastaId;
-    let asistente = await prisma.asistentes.findFirst({ where: { cliente: personaId, subasta: subastaId } });
-    if (!asistente) {
-      asistente = await prisma.asistentes.create({ data: { numeroPostor: indice + 1, cliente: personaId, subasta: subastaId } });
+    // Subasta ya finalizada con ganador: asistentes + pujas + ítem cerrado.
+    if (sub.finalizada) {
+      const f = sub.finalizada;
+      const ganadorId = personaPorEmail[f.ganador];
+      const perdedorId = personaPorEmail[f.perdedor];
+      const aPerdedor = await prisma.asistentes.create({ data: { numeroPostor: 1, cliente: perdedorId, subasta: subasta.identificador } });
+      const aGanador  = await prisma.asistentes.create({ data: { numeroPostor: 2, cliente: ganadorId,  subasta: subasta.identificador } });
+      const pPerdedor = await prisma.pujos.create({ data: { asistente: aPerdedor.identificador, item: item.identificador, importe: f.montoPerdedor, ganador: 'no' } });
+      const pGanador  = await prisma.pujos.create({ data: { asistente: aGanador.identificador,  item: item.identificador, importe: f.montoGanador,  ganador: 'si' } });
+      await prisma.pujosDetalle.createMany({ data: [{ puja: pPerdedor.identificador }, { puja: pGanador.identificador }] });
+      await prisma.notificaciones.create({
+        data: { persona: ganadorId, titulo: '¡Ganaste la subasta!', mensaje: `Ganaste ${sub.nombre}. Coordinaremos el pago y la entrega.`, tipo: 'subasta_ganada' },
+      });
+      resumen.finalizadas += 1;
     }
-    asistentes.push(asistente);
+    resumen.subastas += 1;
   }
 
-  const asistenteItemUno = asistentes[0];
-  let segundoAsistente = await prisma.asistentes.findFirst({ where: { cliente: personasDemo[1], subasta: subastas[0].subastaId } });
-  if (!segundoAsistente) {
-    segundoAsistente = await prisma.asistentes.create({ data: { numeroPostor: 20, cliente: personasDemo[1], subasta: subastas[0].subastaId } });
-  }
-  await asegurarPuja(asistenteItemUno.identificador, subastas[0].itemId, 130000, 'no');
-  await asegurarPuja(segundoAsistente.identificador, subastas[0].itemId, 145000, 'si');
-
-  let asistenteItemDos = await prisma.asistentes.findFirst({ where: { cliente: personasDemo[2], subasta: subastas[1].subastaId } });
-  if (!asistenteItemDos) {
-    asistenteItemDos = await prisma.asistentes.create({ data: { numeroPostor: 30, cliente: personasDemo[2], subasta: subastas[1].subastaId } });
-  }
-  let cuartoAsistente = await prisma.asistentes.findFirst({ where: { cliente: personasDemo[3], subasta: subastas[1].subastaId } });
-  if (!cuartoAsistente) {
-    cuartoAsistente = await prisma.asistentes.create({ data: { numeroPostor: 40, cliente: personasDemo[3], subasta: subastas[1].subastaId } });
-  }
-  await asegurarPuja(asistenteItemDos.identificador, subastas[1].itemId, 900000, 'no');
-  await asegurarPuja(cuartoAsistente.identificador, subastas[1].itemId, 950000, 'si');
-
-  const asistenteOroUno = await asegurarAsistente(personasDemo[1], subastas[2].subastaId, 50);
-  const asistenteOroDos = await asegurarAsistente(personasDemo[2], subastas[2].subastaId, 60);
-  await asegurarPuja(asistenteOroUno.identificador, subastas[2].itemId, 1600, 'no');
-  await asegurarPuja(asistenteOroDos.identificador, subastas[2].itemId, 1750, 'si');
-
-  const asistentePlataUno = await asegurarAsistente(personasDemo[2], subastas[3].subastaId, 70);
-  const asistentePlataDos = await asegurarAsistente(personasDemo[3], subastas[3].subastaId, 80);
-  await asegurarPuja(asistentePlataUno.identificador, subastas[3].itemId, 450000, 'no');
-  await asegurarPuja(asistentePlataDos.identificador, subastas[3].itemId, 480000, 'si');
-
-  console.log('Resumen demo creado o reutilizado:');
-  console.log(`Usuarios nuevos: ${resumen.usuarios}`);
-  console.log(`Métodos de pago nuevos: ${resumen.metodosPago}`);
-  console.log(`Subastas nuevas: ${resumen.subastas}`);
-  console.log(`Productos nuevos: ${resumen.productos}`);
-  console.log(`Ítems nuevos: ${resumen.items}`);
-  console.log(`Pujas nuevas: ${resumen.pujas}`);
-  console.log('Credenciales demo: demo1@subastup.com a demo4@subastup.com / Demo1234');
+  return resumen;
 }
 
-main()
-  .catch((error) => {
-    console.error('Error al crear datos demo:', error);
-    process.exitCode = 1;
-  })
-  .finally(() => prisma.$disconnect());
+// Trunca todas las tablas del esquema public (base + app_) y vuelve a sembrar.
+const TABLAS_EXCLUIDAS = ['_prisma_migrations'];
+async function resetAndSeed(prisma) {
+  const filas = await prisma.$queryRawUnsafe("SELECT tablename FROM pg_tables WHERE schemaname = 'public'");
+  const tablas = filas
+    .map((f) => f.tablename)
+    .filter((t) => !TABLAS_EXCLUIDAS.includes(t))
+    .map((t) => `"${t}"`);
+  if (tablas.length) {
+    await prisma.$executeRawUnsafe(`TRUNCATE ${tablas.join(', ')} RESTART IDENTITY CASCADE`);
+  }
+  return seedDemo(prisma);
+}
+
+module.exports = { seedDemo, resetAndSeed };
+
+// Ejecución como script: resetea y siembra.
+if (require.main === module) {
+  const prisma = new PrismaClient();
+  resetAndSeed(prisma)
+    .then((r) => {
+      console.log('Seed demo OK:', r);
+      console.log('Staff:  admin@subastup.com / Admin1234   |   revisor@subastup.com / Revisor1234');
+      console.log('Demo:   demo1..6@subastup.com / Demo1234  (comun, especial, oro, plata, platino, platino)');
+      console.log('Otras:  vendedor@ (dueño), sinpago@, pendiente@, rechazado@, bloqueado@  / Demo1234');
+    })
+    .catch((e) => { console.error('Error al sembrar:', e); process.exitCode = 1; })
+    .finally(() => prisma.$disconnect());
+}

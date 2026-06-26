@@ -12,6 +12,7 @@ const {
   enviarAprobacion,
   enviarRechazo,
 } = require('../services/mailService');
+const { asegurarRolesDominio } = require('../utils/provision');
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -399,6 +400,10 @@ exports.resetPassword = async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 exports.validateUser = async (req, res) => {
   try {
+    // Solo un administrador/revisor puede aprobar o rechazar cuentas.
+    if (req.user?.rol !== 'admin' && req.user?.rol !== 'revisor')
+      return res.status(403).json({ ok: false, message: 'Acceso denegado. Solo un administrador puede validar cuentas.' });
+
     const { registroId, aprobar, motivoRechazo } = req.body;
 
     if (registroId === undefined || aprobar === undefined)
@@ -406,12 +411,20 @@ exports.validateUser = async (req, res) => {
 
     const nuevoEstado = aprobar ? 'aprobado' : 'rechazado';
 
-    const registro = await prisma.registros.update({
-      where: { identificador: parseInt(registroId) },
-      data: {
-        estado:        nuevoEstado,
-        motivoRechazo: aprobar ? null : (motivoRechazo || 'Rechazado por el administrador'),
-      },
+    // Aprobar cambia el estado Y provisiona las identidades de dominio (cliente +
+    // dueño). Sin la fila en `clientes`, la primera puja viola la FK
+    // asistentes.cliente -> clientes; sin `duenios`, no puede cargar productos.
+    // Todo en una transacción para no dejar el estado a medias.
+    const registro = await prisma.$transaction(async (tx) => {
+      const r = await tx.registros.update({
+        where: { identificador: parseInt(registroId) },
+        data: {
+          estado:        nuevoEstado,
+          motivoRechazo: aprobar ? null : (motivoRechazo || 'Rechazado por el administrador'),
+        },
+      });
+      if (aprobar) await asegurarRolesDominio(tx, r.persona, r.categoria);
+      return r;
     });
 
     // Enviar mail al usuario

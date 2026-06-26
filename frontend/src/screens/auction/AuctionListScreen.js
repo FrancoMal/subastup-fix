@@ -75,7 +75,8 @@ export default function AuctionListScreen({ navigation, route }) {
           titulo: subasta.nombreArticulo || 'Subasta',
           descripcion: subasta.descripcionArticulo || '',
           moneda: subasta.moneda || 'ARS',
-          proximamente: normalizarEstadoSubasta(subasta.estado) === 'proximamente',
+          proximamente: normalizarEstadoSubasta(subasta.estado, subasta.cerrado) === 'proximamente',
+          finalizado: normalizarEstadoSubasta(subasta.estado, subasta.cerrado) === 'finalizado',
           fecha: subasta.fecha,
           fechaTexto: formatearFechaHoraSubasta(subasta.fecha, subasta.hora),
           estado: subasta.estado,
@@ -136,6 +137,13 @@ export default function AuctionListScreen({ navigation, route }) {
           <TouchableOpacity style={styles.recordatorioMiniBtn} onPress={pedirLoginRecordatorio}>
             <Text style={styles.recordatorioMiniText}>Agregar recordatorio</Text>
           </TouchableOpacity>
+        </View>
+      )}
+
+      {item.finalizado && (
+        <View style={styles.finalizadoOverlay}>
+          <Ionicons name="checkmark-done-outline" size={24} color="#FFFFFF" />
+          <Text style={styles.finalizadoTitulo}>FINALIZADA</Text>
         </View>
       )}
 
@@ -297,6 +305,14 @@ const styles = StyleSheet.create({
   },
   proximamenteTitulo: { fontSize: 13, fontWeight: '700', color: '#1A1A1A', marginTop: 4 },
   proximamenteFecha:  { fontSize: 11, color: '#555555', marginTop: 2 },
+  finalizadoOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#00000088',
+  },
+  finalizadoTitulo: { fontSize: 14, fontWeight: '800', color: '#FFFFFF', marginTop: 4, letterSpacing: 1 },
   recordatorioMiniBtn: {
     marginTop: 8,
     backgroundColor: '#8b0000',

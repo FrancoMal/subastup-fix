@@ -3,6 +3,7 @@
 
 const prisma = require('../config/prisma');
 const { fotoARespuesta } = require('../utils/imagenes');
+const { asegurarRolesDominio } = require('../utils/provision');
 
 const TIMER_SEGUNDOS = 60;
 
@@ -350,12 +351,16 @@ exports.pujar = async (req, res) => {
         throw e;
       }
 
-      // No participar en otra subasta activa al mismo tiempo
+      // No participar en otra subasta GENUINAMENTE activa al mismo tiempo. Solo
+      // cuenta si en otro ítem el usuario tiene una puja cuyo timer sigue
+      // corriendo (última puja dentro de TIMER_SEGUNDOS) y no está cerrado. Así no
+      // bloquean pujas viejas/inactivas (p. ej. del seed, con ultimaPuja null).
+      const limiteActivo = new Date(Date.now() - TIMER_SEGUNDOS * 1000);
       const otraParticipacionActiva = await tx.pujos.findFirst({
         where: {
           asistentes:    { cliente: personaId },
           item:          { not: itemId },
-          itemsCatalogo: { detalle: { is: { cerrado: false } } },
+          itemsCatalogo: { detalle: { is: { cerrado: false, ultimaPuja: { gte: limiteActivo } } } },
         },
         orderBy: { identificador: 'desc' },
       });
@@ -365,6 +370,12 @@ exports.pujar = async (req, res) => {
         e.status = 409;
         throw e;
       }
+
+      // Garantiza la fila en `clientes` antes de crear el asistente (FK
+      // asistentes.cliente -> clientes). Red de seguridad para usuarios aprobados
+      // antes de este fix; lo normal es que validateUser ya la haya creado.
+      const clienteExiste = await tx.clientes.findUnique({ where: { identificador: personaId } });
+      if (!clienteExiste) await asegurarRolesDominio(tx, personaId, req.user.categoria);
 
       // Buscar el asistente (el usuario en la subasta)
       const subastaId = item.catalogos?.subastas?.identificador;

@@ -22,6 +22,7 @@ app.use('/api/notifications',  require('./routes/notificaciones'));
 app.use('/api/settings/payment-methods', require('./routes/pagos'));
 app.use('/api/settings',       require('./routes/settings'));
 app.use('/api/help',           require('./routes/help'));
+app.use('/api/dev',            require('./routes/dev'));
 
 app.get('/health', (_req, res) => res.json({ ok: true, server: 'SubastaAPI', ts: new Date() }));
 

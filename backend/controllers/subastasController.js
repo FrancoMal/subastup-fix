@@ -10,6 +10,7 @@ const ESTADOS_SUBASTA_VISIBLES = ['abierta', 'activa', 'activo', 'programada', '
 function formatearSubasta(s) {
   const item    = s.catalogos?.[0]?.itemsCatalogo?.[0];
   const foto    = item?.productos?.fotos?.[0]?.foto;
+  const cerrado = Boolean(item?.detalle?.cerrado);
   return {
     subastaId:      s.identificador,
     itemId:         item?.identificador || null,
@@ -18,7 +19,10 @@ function formatearSubasta(s) {
     hora:           s.hora,
     ubicacion:      s.ubicacion,
     categoria:      s.categoria,
-    estado:         s.estado,
+    // El cierre de SubastUP marca el ítem como cerrado pero no cambia
+    // subasta.estado; derivamos 'finalizada' para que la lista muestre el tag.
+    estado:         cerrado ? 'finalizada' : s.estado,
+    cerrado,
     nombreArticulo: item?.productos?.detalle?.nombre || null,
     descripcionArticulo: item?.productos?.descripcionCompleta || item?.productos?.descripcionCatalogo || null,
     moneda:         item?.detalle?.moneda || 'ARS',
