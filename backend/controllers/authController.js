@@ -487,6 +487,36 @@ exports.asignarCategoria = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────
+// GET /api/auth/pendientes  (solo admin/revisor)
+// Lista las solicitudes de registro pendientes de aprobación.
+// ─────────────────────────────────────────────────────────────
+exports.pendientes = async (req, res) => {
+  try {
+    if (req.user?.rol !== 'admin' && req.user?.rol !== 'revisor')
+      return res.status(403).json({ ok: false, message: 'Acceso denegado.' });
+
+    const registros = await prisma.registros.findMany({
+      where:   { estado: 'pendiente' },
+      orderBy: { fechaRegistro: 'desc' },
+      include: { personas: { select: { nombre: true, documento: true } } },
+    });
+
+    const usuarios = registros.map((r) => ({
+      registroId:    r.identificador,
+      nombre:        r.personas?.nombre || '',
+      email:         r.email,
+      documento:     r.personas?.documento || '',
+      fechaRegistro: r.fechaRegistro,
+    }));
+
+    return res.json({ ok: true, usuarios });
+  } catch (err) {
+    console.error('pendientes error:', err);
+    return res.status(500).json({ ok: false, message: 'Error al obtener las solicitudes pendientes.' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
 // POST /api/auth/logout
 // ─────────────────────────────────────────────────────────────
 exports.logout = async (req, res) => {

@@ -12,6 +12,7 @@ const {
   resetPassword,
   validateUser,
   asignarCategoria,
+  pendientes,
   logout,
 } = require('../controllers/authController');
 
@@ -26,6 +27,7 @@ router.post('/reset-password',  resetPassword);
 // validateUser y asignarCategoria verifican el rol internamente.
 router.post('/validate-user',    auth, validateUser);
 router.put('/asignar-categoria', auth, asignarCategoria);
+router.get('/pendientes',        auth, pendientes);
 
 // ── Protegida (usuario general) ───────────────────────────────
 router.post('/logout', auth, logout);
